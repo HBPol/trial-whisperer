@@ -1,6 +1,6 @@
 # TrialWhisperer
 
-[![CI](https://github.com/OWNER/trial-whisperer/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/trial-whisperer/actions/workflows/ci.yml)
+[![CI](https://github.com/HBPol/trial-whisperer/actions/workflows/ci.yml/badge.svg)](https://github.com/HBPol/trial-whisperer/actions/workflows/ci.yml)
 
 Clinical Trial Protocol Chatbot (MVP): query trial eligibility criteria, outcomes, and interventions from ClinicalTrials.gov with grounded answers and citations. Includes an eligibility checker prototype.
 
