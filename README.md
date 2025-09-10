@@ -11,6 +11,11 @@ Clinical Trial Protocol Chatbot (MVP): query trial eligibility criteria, outcome
 - `/check-eligibility` given patient JSON
 - Minimal chat UI
 
+## Documentation
+- [Project Overview](project_docs/ProjectOverview.md)
+- [Requirements Specification](project_docs/RequirementsSpecification.md)
+- [Project Plan](project_docs/ProjectPlan.md)
+
 
 ## Stack
 - FastAPI, Python 3.11
@@ -27,3 +32,7 @@ cp config/appsettings.example.toml config/appsettings.toml
 # Edit config/appsettings.toml with your keys / endpoints
 make seed # small demo dataset + index
 make run
+```
+
+## Contributing
+Development follows a TDD approach. Please write or update tests before implementing new functionality.
