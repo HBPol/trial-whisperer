@@ -1,0 +1,1 @@
+Given trial eligibility text and a patient profile, determine likely eligibility. Cite specific criteria lines that drive the decision. If ambiguous, explain what’s missing.

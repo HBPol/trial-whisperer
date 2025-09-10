@@ -1,0 +1,21 @@
+[server]
+host = "0.0.0.0"
+port = 8000
+
+
+[llm]
+provider = "gemini" # or "openai"
+model = "gemini-1.5-flash"
+api_key = "YOUR_GEMINI_API_KEY"
+
+
+[retrieval]
+backend = "qdrant" # or "vertex"
+qdrant_url = "https://YOUR-QDRANT-URL"
+qdrant_api_key = "YOUR_QDRANT_KEY"
+collection = "trialwhisperer"
+
+
+[data]
+raw_dir = ".data/raw"
+proc_dir = ".data/processed"
