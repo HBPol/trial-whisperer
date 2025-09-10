@@ -1,7 +1,5 @@
 name: CI
-on:
-  push:
-  pull_request:
+on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -9,17 +7,18 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-          cache: 'pip'
-          cache-dependency-path: requirements.txt
-            - name: Install dependencies
-              run: |
-                python -m pip install --upgrade pip
-                pip install -r requirements.txt
-                pip install black isort pytest
-            - name: Run formatting checks
-              run: |
-                black . --check
-                isort . --check-only
-            - name: Run tests
-              run: pytest -q
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: |
+            requirements.txt
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install black isort pytest
+      - name: Run formatting checks
+        run: |
+          black . --check
+          isort . --check-only
+      - name: Run tests
+        run: pytest -q
