@@ -35,5 +35,14 @@ make seed # small demo dataset + index
 make run
 ```
 
+### Environment variables
+
+The application reads configuration from `config/appsettings.toml`. The following
+environment variables can override values in that file:
+
+- `LLM_API_KEY` – API key for your LLM provider.
+- `QDRANT_URL` – Qdrant cloud endpoint.
+- `QDRANT_API_KEY` – Qdrant authentication token.
+
 ## Contributing
 Development follows a TDD approach. Please write or update tests before implementing new functionality.
