@@ -1,0 +1,24 @@
+<clinical_study>
+      <id_info>
+        <nct_id>NCT00000006</nct_id>
+      </id_info>
+      <brief_title>Trial 6</brief_title>
+      <condition>Condition 6</condition>
+      <intervention>
+        <intervention_type>Drug</intervention_type>
+        <intervention_name>Drug 6</intervention_name>
+      </intervention>
+      <eligibility>
+        <criteria>
+          <textblock>Inclusion Criteria:
+- Eligible for trial 6
+
+Exclusion Criteria:
+- Not eligible for trial 6</textblock>
+        </criteria>
+      </eligibility>
+      <primary_outcome>
+        <measure>Outcome 6</measure>
+        <time_frame>1 year</time_frame>
+      </primary_outcome>
+    </clinical_study>

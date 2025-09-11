@@ -1,0 +1,24 @@
+<clinical_study>
+      <id_info>
+        <nct_id>NCT00000008</nct_id>
+      </id_info>
+      <brief_title>Trial 8</brief_title>
+      <condition>Condition 8</condition>
+      <intervention>
+        <intervention_type>Drug</intervention_type>
+        <intervention_name>Drug 8</intervention_name>
+      </intervention>
+      <eligibility>
+        <criteria>
+          <textblock>Inclusion Criteria:
+- Eligible for trial 8
+
+Exclusion Criteria:
+- Not eligible for trial 8</textblock>
+        </criteria>
+      </eligibility>
+      <primary_outcome>
+        <measure>Outcome 8</measure>
+        <time_frame>1 year</time_frame>
+      </primary_outcome>
+    </clinical_study>
