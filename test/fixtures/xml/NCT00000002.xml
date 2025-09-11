@@ -1,24 +1,22 @@
 <clinical_study>
-      <id_info>
-        <nct_id>NCT00000002</nct_id>
-      </id_info>
-      <brief_title>Trial 2</brief_title>
-      <condition>Condition 2</condition>
-      <intervention>
-        <intervention_type>Drug</intervention_type>
-        <intervention_name>Drug 2</intervention_name>
-      </intervention>
-      <eligibility>
-        <criteria>
-          <textblock>Inclusion Criteria:
-- Eligible for trial 2
+  <id_info>
+    <nct_id>NCT00000002</nct_id>
+  </id_info>
+  <official_title>Bar Study</official_title>
+  <condition>Bar Disorder</condition>
+  <intervention>
+    <intervention_type>Procedure</intervention_type>
+    <intervention_name>BarTherapy</intervention_name>
+  </intervention>
+  <eligibility>
+    <criteria>
+      <textblock>
+        Inclusion Criteria:
+        - Diagnosis of Bar Disorder
+        Exclusion Criteria:
+        - Prior Bar Therapy
+      </textblock>
+    </criteria>
+  </eligibility>
+</clinical_study>
 
-Exclusion Criteria:
-- Not eligible for trial 2</textblock>
-        </criteria>
-      </eligibility>
-      <primary_outcome>
-        <measure>Outcome 2</measure>
-        <time_frame>1 year</time_frame>
-      </primary_outcome>
-    </clinical_study>
