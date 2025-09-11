@@ -6,13 +6,13 @@ port = 8000
 [llm]
 provider = "gemini" # or "openai"
 model = "gemini-1.5-flash"
-api_key = "YOUR_GEMINI_API_KEY"
+api_key = "YOUR_GEMINI_API_KEY" # or set via LLM_API_KEY env var
 
 
 [retrieval]
 backend = "qdrant" # or "vertex"
-qdrant_url = "https://YOUR-QDRANT-URL"
-qdrant_api_key = "YOUR_QDRANT_KEY"
+qdrant_url = "https://YOUR-QDRANT-URL" # or set via QDRANT_URL env var
+qdrant_api_key = "YOUR_QDRANT_KEY" # or set via QDRANT_API_KEY env var
 collection = "trialwhisperer"
 
 
