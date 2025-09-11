@@ -7,7 +7,9 @@ we only implement a small portion of that behaviour here.  The
 documents ready for indexing.  Each document contains the ``nct_id`` of the
 source trial, the name of the section from which the text originated and the
 text itself.  Long pieces of text are split into fixed size chunks so that
-each chunk contains at most ``target_tokens`` words.
+each chunk contains at most ``target_tokens`` words.  A deliberately simple
+tokenizer based on :py:meth:`str.split` is used to divide the text on
+whitespace; more sophisticated approaches can be plugged in later if needed.
 """
 
 from __future__ import annotations
@@ -65,6 +67,7 @@ def chunk_sections(record: Dict[str, object], target_tokens: int = 700) -> List[
     chunks: List[Dict[str, str]] = []
 
     for section, text in _iter_sections(record):
+        # Simple whitespace tokenizer; sufficient for the unit tests
         tokens = text.split()
         for start in range(0, len(tokens), target_tokens):
             piece = " ".join(tokens[start : start + target_tokens])
