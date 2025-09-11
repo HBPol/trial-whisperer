@@ -1,0 +1,26 @@
+# Local environment & variables
+.env
+.venv/
+
+# JetBrains IDE folder
+.idea/
+
+# Python test coverage data
+.coverage
+
+# Temporary scratch files
+scratches/
+
+# Project scaffolder scripts
+scaffold.sh
+tree.txt
+
+# Others...
+__pycache__/
+*.pyc
+*.pyo
+*.DS_Store
+config/appsettings.toml
+.cache/
+.qdrant/
+.data/
