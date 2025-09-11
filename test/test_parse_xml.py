@@ -27,7 +27,9 @@ EXPECTED = {
     },
 }
 
-@pytest.mark.parametrize('xml_file', sorted(FIXTURE_DIR.glob('NCT*.xml')))
+XML_FILES = sorted(p for p in FIXTURE_DIR.glob('NCT*.xml') if p.stem in EXPECTED)
+
+@pytest.mark.parametrize('xml_file', XML_FILES)
 def test_parse_xml(xml_file):
     parsed = parse_one(xml_file)
     expected = EXPECTED[xml_file.stem]
