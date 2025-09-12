@@ -28,6 +28,7 @@ def test_pipeline_creates_chunks_per_trial():
     # Every chunk has essential metadata
     assert all("nct_id" in c and c["nct_id"] for c in chunks)
     assert all("section" in c and c["section"] for c in chunks)
+    assert all("text" in c and c["text"] for c in chunks)
 
     # There is at least one chunk per trial
     expected_ids = {p.stem for p in FIXTURE_DIR.glob("NCT*.xml")}
