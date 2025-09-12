@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from pathlib import Path
 import json
-from typing import List, Dict
+from pathlib import Path
+from typing import Dict, List
 
-from .parse_xml import parse_one
-from .normalize import normalize
 from .chunk import chunk_sections
+from .normalize import normalize
+from .parse_xml import parse_one
 
 
 def process_trials(xml_dir: Path, output_path: Path | None = None) -> Path:
