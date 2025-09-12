@@ -47,7 +47,9 @@ def _iter_sections(record: Dict[str, object]) -> Iterable[tuple[str, str]]:
                     yield f"{key}.{sub_key}", text
 
 
-def chunk_sections(record: Dict[str, object], target_tokens: int = 700) -> List[Dict[str, str]]:
+def chunk_sections(
+    record: Dict[str, object], target_tokens: int = 700
+) -> List[Dict[str, str]]:
     """Split text fields of a trial record into smaller chunks.
 
     Parameters

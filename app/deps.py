@@ -7,6 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     """Application configuration loaded from file and environment."""
+
     llm_provider: str | None = None
     llm_model: str | None = None
     llm_api_key: str | None = None
@@ -19,12 +20,12 @@ class Settings(BaseSettings):
 
     @classmethod
     def settings_customise_sources(
-            cls,
-            settings_cls,
-            init_settings,
-            env_settings,
-            dotenv_settings,
-            file_secret_settings,
+        cls,
+        settings_cls,
+        init_settings,
+        env_settings,
+        dotenv_settings,
+        file_secret_settings,
     ):
         """Customise how pydantic-settings loads configuration.
 
@@ -56,6 +57,7 @@ class Settings(BaseSettings):
             "qdrant_api_key": data.get("retrieval", {}).get("qdrant_api_key"),
             "qdrant_collection": data.get("retrieval", {}).get("collection"),
         }
+
 
 @lru_cache
 def get_settings() -> Settings:

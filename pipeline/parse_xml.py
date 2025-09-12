@@ -10,7 +10,7 @@ API behaves.
 """
 
 from pathlib import Path
-from typing import List, Dict
+from typing import Dict, List
 
 from lxml import etree
 
@@ -26,19 +26,19 @@ def _text(element) -> str:
 def parse_one(xml_path: Path) -> dict:
     """Parse a single ClinicalTrials.gov XML file.
 
-        Parameters
-        ----------
-        xml_path:
-            Path to the XML file on disk.
+    Parameters
+    ----------
+    xml_path:
+        Path to the XML file on disk.
 
-        Returns
-        -------
-        dict
-            A dictionary with keys ``nct_id``, ``title``, ``condition``,
-            ``interventions`` and ``eligibility``.  An ``outcomes`` field is also
-            included for completeness even though it is not currently exercised by
-            the tests.
-        """
+    Returns
+    -------
+    dict
+        A dictionary with keys ``nct_id``, ``title``, ``condition``,
+        ``interventions`` and ``eligibility``.  An ``outcomes`` field is also
+        included for completeness even though it is not currently exercised by
+        the tests.
+    """
 
     tree = etree.parse(str(xml_path))
 

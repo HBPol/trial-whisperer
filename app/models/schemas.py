@@ -1,5 +1,6 @@
-from pydantic import BaseModel
 from typing import List, Optional
+
+from pydantic import BaseModel
 
 
 class AskRequest(BaseModel):
@@ -21,7 +22,7 @@ class AskResponse(BaseModel):
 class PatientProfile(BaseModel):
     age: Optional[int] = None
     sex: Optional[str] = None
-    labs: Optional[dict] = None # {"ECOG": 2, "LVEF": 55}
+    labs: Optional[dict] = None  # {"ECOG": 2, "LVEF": 55}
 
 
 class EligibilityRequest(BaseModel):

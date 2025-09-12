@@ -20,7 +20,7 @@ Clinical Trial Protocol Chatbot (MVP): query trial eligibility criteria, outcome
 
 ## Stack
 - FastAPI, Python 3.11
-- Qdrant (managed free tier) or Vertex AI Search
+- Qdrant (managed free tier)
 - Gemini (or OpenAI) LLM
 - Cloud Run / Hugging Face Spaces
 
