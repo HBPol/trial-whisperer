@@ -4,7 +4,6 @@ from ..agents.tools import check_eligibility
 from ..models.schemas import EligibilityRequest, EligibilityResponse
 from ..retrieval.search_client import retrieve_criteria_for_trial
 
-
 router = APIRouter()
 
 
