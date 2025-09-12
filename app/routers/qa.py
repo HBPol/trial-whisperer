@@ -4,8 +4,6 @@ from ..agents.tools import call_llm_with_citations
 from ..models.schemas import AskRequest, AskResponse, Citation
 from ..retrieval.search_client import retrieve_chunks
 
-
-
 router = APIRouter()
 
 

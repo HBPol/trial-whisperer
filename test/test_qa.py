@@ -12,6 +12,7 @@ def test_ask_returns_answer():
 
     def mock_call_llm_with_citations(query, chunks):
         return "mock answer", chunks
+
     qa.retrieve_chunks = mock_retrieve_chunks
     qa.call_llm_with_citations = mock_call_llm_with_citations
     response = client.post("/ask/", json={"query": "What?", "nct_id": "NCT1"})

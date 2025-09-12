@@ -22,6 +22,7 @@ def test_check_eligibility_success():
     assert response.status_code == 200
     assert response.json()["eligible"] is True
 
+
 def test_check_eligibility_missing_criteria_returns_400():
     eligibility.retrieve_criteria_for_trial = lambda nct_id: None
     response = client.post(

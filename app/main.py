@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+
 from .routers import eligibility, qa, trials
 
 app = FastAPI(title="TrialWhisperer", version="0.1.0")
