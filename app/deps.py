@@ -7,6 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     """Application configuration loaded from file and environment."""
+
     llm_provider: str | None = None
     llm_model: str | None = None
     llm_api_key: str | None = None
@@ -19,17 +20,30 @@ class Settings(BaseSettings):
 
     @classmethod
     def settings_customise_sources(
-            cls, settings_cls, init_settings, env_settings, file_secret_settings
+        cls,
+        settings_cls,
+        init_settings,
+        env_settings,
+        dotenv_settings,
+        file_secret_settings,
     ):
+        """Customise how pydantic-settings loads configuration.
+
+        In pydantic-settings v2 the ``dotenv_settings`` source was added to the
+        signature.  Accept it here so that instantiating ``Settings`` works
+        regardless of the library version.
+        """
+
         return (
             init_settings,
             cls._toml_config_settings_source,
             env_settings,
+            dotenv_settings,
             file_secret_settings,
         )
 
     @classmethod
-    def _toml_config_settings_source(cls, settings: BaseSettings):
+    def _toml_config_settings_source(cls, settings: BaseSettings | None = None):
         config_path = Path("config/appsettings.toml")
         if not config_path.exists():
             return {}
@@ -43,6 +57,7 @@ class Settings(BaseSettings):
             "qdrant_api_key": data.get("retrieval", {}).get("qdrant_api_key"),
             "qdrant_collection": data.get("retrieval", {}).get("collection"),
         }
+
 
 @lru_cache
 def get_settings() -> Settings:

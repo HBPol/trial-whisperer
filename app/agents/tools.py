@@ -6,6 +6,7 @@ settings = get_settings()
 
 # Stub LLM caller — swap with Gemini/OpenAI SDK or plain HTTP
 
+
 def call_llm_with_citations(query: str, chunks: List[dict]) -> Tuple[str, List[dict]]:
     # TODO: implement real prompt + call using settings.llm_api_key
     answer = f"[DEMO] Based on {len(chunks)} retrieved passages, see citations."

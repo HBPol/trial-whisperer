@@ -1,0 +1,21 @@
+<clinical_study>
+  <id_info>
+    <nct_id>NCT00000001</nct_id>
+  </id_info>
+  <official_title>Study of Foo</official_title>
+  <condition>Foo Syndrome</condition>
+  <intervention>
+    <intervention_type>Drug</intervention_type>
+    <intervention_name>FooDrug</intervention_name>
+  </intervention>
+  <eligibility>
+    <criteria>
+      <textblock>
+        Inclusion Criteria:
+        - Age 18 to 65
+        Exclusion Criteria:
+        - Uncontrolled hypertension
+      </textblock>
+    </criteria>
+  </eligibility>
+</clinical_study>
