@@ -1,26 +1,33 @@
+import json
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.retrieval import search_client
 from app.routers import qa
 
 client = TestClient(app)
 
 
+def _load_index() -> None:
+    path = Path(".data/processed/trials.jsonl")
+    with path.open("r", encoding="utf-8") as f:
+        search_client._FAKE_INDEX = [json.loads(line) for line in f]
+
+
 def test_ask_returns_answer():
-    def mock_retrieve_chunks(query, nct_id):
-        return [{"nct_id": "NCT1", "section": "intro", "text": "sample"}]
-
-    def mock_call_llm_with_citations(query, chunks):
-        return "mock answer", chunks
-
-    qa.retrieve_chunks = mock_retrieve_chunks
-    qa.call_llm_with_citations = mock_call_llm_with_citations
-    response = client.post("/ask/", json={"query": "What?", "nct_id": "NCT1"})
+    _load_index()
+    sample_id = search_client._FAKE_INDEX[0]["nct_id"]
+    response = client.post(
+        "/ask/", json={"query": "What is this study?", "nct_id": sample_id}
+    )
     assert response.status_code == 200
-    assert response.json()["answer"] == "mock answer"
+    assert "answer" in response.json()
 
 
 def test_ask_requires_nonempty_query():
-    qa.retrieve_chunks = lambda query, nct_id: []
-    response = client.post("/ask/", json={"query": "", "nct_id": "NCT1"})
+    _load_index()
+    sample_id = search_client._FAKE_INDEX[0]["nct_id"]
+    response = client.post("/ask/", json={"query": "", "nct_id": sample_id})
     assert response.status_code == 400
