@@ -6,6 +6,7 @@ from pipeline.pipeline import process_trials
 FIXTURE_DIR = Path(__file__).parent / 'fixtures' / 'xml'
 OUTPUT_JSONL = Path('.data/processed/trials.jsonl')
 
+
 def test_pipeline_creates_chunks_per_trial():
     # Ensure clean state
     if OUTPUT_JSONL.exists():
