@@ -24,3 +24,5 @@ config/appsettings.toml
 .cache/
 .qdrant/
 .data/
+requirements.in
+requirements-dev.in
