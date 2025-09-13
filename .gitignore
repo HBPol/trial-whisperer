@@ -23,6 +23,8 @@ __pycache__/
 config/appsettings.toml
 .cache/
 .qdrant/
-.data/
+.data/*
+!.data/processed/
+!.data/processed/trials.jsonl
 requirements.in
 requirements-dev.in
