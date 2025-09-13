@@ -8,13 +8,13 @@ router = APIRouter()
 
 
 @router.post("/", response_model=AskResponse)
-async def ask(payload: AskRequest):
-    if not payload.query:
-        raise HTTPException(400, detail="Query cannot be empty")
-    chunks = retrieve_chunks(query=payload.query, nct_id=payload.nct_id)
+async def ask(body: AskRequest):
+    if not body.query:
+        raise HTTPException(status_code=400, detail="query is required")
+    chunks = retrieve_chunks(query=body.query, nct_id=body.nct_id)
     if not chunks:
         raise HTTPException(404, detail="No relevant passages found.")
-    answer, cits = call_llm_with_citations(payload.query, chunks)
+    answer, cits = call_llm_with_citations(body.query, chunks)
     return AskResponse(
         answer=answer,
         citations=[

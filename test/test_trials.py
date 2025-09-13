@@ -24,14 +24,17 @@ def _load_trials() -> str:
     return next(iter(trials.TRIALS))
 
 
-def test_get_trial_returns_trial():
+def test_get_trial_returns_expected_structure():
     nct_id = _load_trials()
     response = client.get(f"/trial/{nct_id}")
     assert response.status_code == 200
-    assert response.json()["id"] == nct_id
+    data = response.json()
+    assert data["id"] == nct_id
+    assert "title" in data
+    assert "sections" in data
 
 
-def test_get_trial_missing_returns_400():
+def test_get_trial_unknown_returns_400():
     _load_trials()
     response = client.get("/trial/UNKNOWN")
     assert response.status_code == 400

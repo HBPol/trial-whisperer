@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 
 class AskRequest(BaseModel):
-    query: str
+    query: Optional[str] = None
     nct_id: Optional[str] = None
 
 
