@@ -9,16 +9,18 @@ router = APIRouter()
 
 @router.post("/", response_model=AskResponse)
 async def ask(body: AskRequest):
-    if not body.query:
+    # Ensure the request adheres to the AskRequest schema
+    body = AskRequest.model_validate(body)
+
+    if not body.query or not body.query.strip():
         raise HTTPException(status_code=400, detail="query is required")
+
     chunks = retrieve_chunks(query=body.query, nct_id=body.nct_id)
     if not chunks:
-        raise HTTPException(404, detail="No relevant passages found.")
+        raise HTTPException(status_code=404, detail="No relevant passages found.")
     answer, cits = call_llm_with_citations(body.query, chunks)
-    return AskResponse(
-        answer=answer,
-        citations=[
-            Citation(nct_id=c["nct_id"], section=c["section"], text_snippet=c["text"])
-            for c in cits
-        ],
-    )
+    citations = [
+        Citation(nct_id=c["nct_id"], section=c["section"], text_snippet=c["text"])
+        for c in cits
+    ]
+    return AskResponse(answer=answer, citations=citations)
