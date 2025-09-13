@@ -23,12 +23,12 @@ def ensure_collection(client: QdrantClient, dim: int = 768) -> None:
 
 
 def index_chunks(
-        client: QdrantClient | None = None,
-        embed_model: Optional[object] = None,
-        chunks: Iterable[Dict[str, str]] | None = None,
-        *,
-        data_path: Path | str = Path(".data/processed/trials.jsonl"),
-        model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
+    client: QdrantClient | None = None,
+    embed_model: Optional[object] = None,
+    chunks: Iterable[Dict[str, str]] | None = None,
+    *,
+    data_path: Path | str = Path(".data/processed/trials.jsonl"),
+    model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
 ) -> None:
     """Embed and upsert trial ``chunks`` into Qdrant.
 

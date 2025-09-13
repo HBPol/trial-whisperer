@@ -71,7 +71,9 @@ def test_entrypoint_reads_jsonl_and_invokes_dependencies(tmp_path, monkeypatch):
     mock_embed.get_sentence_embedding_dimension.return_value = 3
     mock_embed.encode.return_value = [[0.1, 0.2, 0.3]]
 
-    monkeypatch.setattr("pipeline.index_qdrant.QdrantClient", MagicMock(return_value=mock_client))
+    monkeypatch.setattr(
+        "pipeline.index_qdrant.QdrantClient", MagicMock(return_value=mock_client)
+    )
     import types
 
     dummy_module = types.SimpleNamespace(SentenceTransformer=lambda name: mock_embed)
