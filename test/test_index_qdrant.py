@@ -1,4 +1,5 @@
 import json
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -56,3 +57,31 @@ def test_index_chunks_upserts_embeddings_and_payloads():
     for idx, point in enumerate(points):
         assert point.payload == chunks[idx]
         assert point.vector == mock_embed.encode.return_value[idx]
+
+
+def test_entrypoint_reads_jsonl_and_invokes_dependencies(tmp_path, monkeypatch):
+    data_file = tmp_path / "trials.jsonl"
+    chunk = {"nct_id": "NCT0", "section": "title", "text": "hello world"}
+    with data_file.open("w", encoding="utf-8") as f:
+        json.dump(chunk, f)
+        f.write("\n")
+
+    mock_client = MagicMock(spec=QdrantClient)
+    mock_embed = MagicMock()
+    mock_embed.get_sentence_embedding_dimension.return_value = 3
+    mock_embed.encode.return_value = [[0.1, 0.2, 0.3]]
+
+    monkeypatch.setattr("pipeline.index_qdrant.QdrantClient", MagicMock(return_value=mock_client))
+    import types
+
+    dummy_module = types.SimpleNamespace(SentenceTransformer=lambda name: mock_embed)
+    monkeypatch.setitem(sys.modules, "sentence_transformers", dummy_module)
+
+    index_chunks(data_path=data_file)
+
+    mock_embed.encode.assert_called_once_with([chunk["text"]])
+    mock_client.upsert.assert_called_once()
+    # ensure collection created with vector size from model
+    mock_client.create_collection.assert_called_once()
+    size = mock_client.create_collection.call_args.kwargs["vectors_config"].size
+    assert size == 3
