@@ -1,14 +1,18 @@
-.PHONY: run seed format test
+.RECIPEPREFIX := >
+.PHONY: run seed format test index
 
 run:
-	uvicorn app.main:app --reload
+>uvicorn app.main:app --reload
 
 seed:
-	bash scripts/seed_smallset.sh
+>bash scripts/seed_smallset.sh
 
 
 format:
-	bash scripts/format.sh
+>bash scripts/format.sh
 
 test:
-	pytest -q
+>pytest -q
+
+index:
+>python scripts/index.py
