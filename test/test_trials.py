@@ -4,28 +4,25 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.routers import trials
+from app.retrieval import trial_store
 
 client = TestClient(app)
 
 
-def _load_trials() -> str:
+def _sample_trial_id() -> str:
+    trial_store.clear_trials_cache()
     path = Path(".data/processed/trials.jsonl")
-    trials.TRIALS.clear()
     with path.open("r", encoding="utf-8") as f:
         for line in f:
             chunk = json.loads(line)
-            trial = trials.TRIALS.setdefault(
-                chunk["nct_id"], {"id": chunk["nct_id"], "sections": {}}
-            )
-            if chunk["section"] == "title":
-                trial["title"] = chunk["text"]
-            trial["sections"][chunk["section"]] = chunk["text"]
-    return next(iter(trials.TRIALS))
+            nct_id = chunk.get("nct_id")
+            if nct_id:
+                return nct_id
+    raise AssertionError("No trial data available for tests")
 
 
 def test_get_trial_returns_expected_structure():
-    nct_id = _load_trials()
+    nct_id = _sample_trial_id()
     response = client.get(f"/trial/{nct_id}")
     assert response.status_code == 200
     data = response.json()
@@ -35,6 +32,6 @@ def test_get_trial_returns_expected_structure():
 
 
 def test_get_trial_unknown_returns_400():
-    _load_trials()
+    trial_store.clear_trials_cache()
     response = client.get("/trial/UNKNOWN")
     assert response.status_code == 400

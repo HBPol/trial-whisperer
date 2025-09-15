@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel
 
@@ -33,3 +33,9 @@ class EligibilityRequest(BaseModel):
 class EligibilityResponse(BaseModel):
     eligible: bool
     reasons: List[str]
+
+
+class TrialMetadata(BaseModel):
+    id: str
+    title: Optional[str] = None
+    sections: Dict[str, str]
