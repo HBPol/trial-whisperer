@@ -25,8 +25,8 @@ def main() -> None:
 
     client: QdrantClient | None = None
     retrieval = config.get("retrieval", {})
-    url = os.getenv("QDRANT_URL", retrieval.get("qdrant_url"))
-    api_key = os.getenv("QDRANT_API_KEY", retrieval.get("qdrant_api_key"))
+    url = os.getenv("QDRANT_URL") or retrieval.get("qdrant_url")
+    api_key = os.getenv("QDRANT_API_KEY") or retrieval.get("qdrant_api_key")
     if url or api_key:
         client = QdrantClient(url=url, api_key=api_key)
 
