@@ -41,4 +41,4 @@ python pipeline/chunk.py # TODO
 
 ensure_qdrant
 
-python pipeline/index_qdrant.py
+python scripts/index.py

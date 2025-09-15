@@ -59,7 +59,7 @@ def test_index_chunks_upserts_embeddings_and_payloads():
         assert point.vector == mock_embed.encode.return_value[idx]
 
 
-def test_entrypoint_reads_jsonl_and_invokes_dependencies(tmp_path, monkeypatch):
+def test_index_chunks_reads_jsonl_and_invokes_dependencies(tmp_path, monkeypatch):
     data_file = tmp_path / "trials.jsonl"
     chunk = {"nct_id": "NCT0", "section": "title", "text": "hello world"}
     with data_file.open("w", encoding="utf-8") as f:
@@ -87,3 +87,38 @@ def test_entrypoint_reads_jsonl_and_invokes_dependencies(tmp_path, monkeypatch):
     mock_client.create_collection.assert_called_once()
     size = mock_client.create_collection.call_args.kwargs["vectors_config"].size
     assert size == 3
+
+
+def test_index_script_uses_qdrant_config(tmp_path, monkeypatch):
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / "appsettings.toml").write_text(
+        """
+[retrieval]
+qdrant_url = "https://example"
+qdrant_api_key = "secret"
+
+[data]
+proc_dir = "."
+"""
+    )
+    data_file = tmp_path / "trials.jsonl"
+    data_file.write_text("{}\n")
+
+    from scripts import index as index_script
+
+    mock_client_cls = MagicMock()
+    mock_client = MagicMock()
+    mock_client_cls.return_value = mock_client
+    monkeypatch.setattr(index_script, "QdrantClient", mock_client_cls)
+    mock_index_chunks = MagicMock()
+    monkeypatch.setattr(index_script, "index_chunks", mock_index_chunks)
+
+    monkeypatch.chdir(tmp_path)
+    index_script.main()
+
+    mock_client_cls.assert_called_once_with(url="https://example", api_key="secret")
+    mock_index_chunks.assert_called_once()
+    kwargs = mock_index_chunks.call_args.kwargs
+    assert kwargs["client"] is mock_client
+    assert Path(kwargs["data_path"]).resolve() == data_file

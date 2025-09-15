@@ -32,6 +32,7 @@ pip install -r requirements.txt
 cp config/appsettings.example.toml config/appsettings.toml
 # Edit config/appsettings.toml with your keys / endpoints
 make seed # small demo dataset + index (starts local Qdrant if needed)
+python scripts/index.py # index processed trials into Qdrant
 make run
 ```
 
