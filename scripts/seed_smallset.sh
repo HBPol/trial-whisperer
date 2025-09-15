@@ -2,6 +2,25 @@
 set -euo pipefail
 
 ensure_qdrant() {
+  local config_file="config/appsettings.toml"
+
+  if [ -z "${QDRANT_URL:-}" ] || [ -z "${QDRANT_API_KEY:-}" ]; then
+    if [ -f "${config_file}" ]; then
+      eval "$(python - "${config_file}" <<'PY'
+import shlex, sys, tomllib
+cfg = tomllib.load(open(sys.argv[1], 'rb'))
+retr = cfg.get('retrieval', {})
+url = retr.get('qdrant_url', '')
+key = retr.get('qdrant_api_key', '')
+if url:
+    print(f"QDRANT_URL={shlex.quote(url)}")
+if key:
+    print(f"QDRANT_API_KEY={shlex.quote(key)}")
+PY
+      )"
+    fi
+  fi
+
   local qdrant_url="${QDRANT_URL:-http://localhost:6333}"
 
   if curl --silent --fail "${qdrant_url}/health" > /dev/null; then
