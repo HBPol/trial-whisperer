@@ -53,14 +53,19 @@ PY
   local image="${QDRANT_IMAGE:-qdrant/qdrant}"
   local max_wait="${QDRANT_WAIT_SECONDS:-30}"
 
-  # Small helper to probe /health with optional API key
+  # Small helper to probe /healthz with optional API key
   qdrant_check_health() {
     local url="$1"; shift
     local key="${1:-}"
+    local -a FAIL_FLAG=("--fail-with-body")
+
+    if ! curl --fail-with-body --version >/dev/null 2>&1; then
+      FAIL_FLAG=("--fail")
+    fi
     if [[ -n "$key" ]]; then
-      curl --silent --fail --fail-with-body -H "api-key: ${key}" "${url}/health" >/dev/null
+      curl --silent "${FAIL_FLAG[@]}" -H "api-key: ${key}" "${url}/healthz" >/dev/null
     else
-      curl --silent --fail "${url}/health" >/dev/null
+      curl --silent "${FAIL_FLAG[@]}" "${url}/healthz" >/dev/null
     fi
   }
 
