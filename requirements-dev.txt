@@ -240,6 +240,8 @@ pyproject-hooks==1.2.0
     #   pip-tools
 pytest==8.4.2
     # via -r requirements-dev.in
+pytest-cov==4.1.0
+    # via -r requirements-dev.in
 python-dateutil==2.9.0.post0
     # via jupyter-client
 python-dotenv==1.1.1
