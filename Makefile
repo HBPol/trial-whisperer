@@ -15,4 +15,4 @@ test:
 >pytest -q
 
 index:
->python scripts/index.py
+>python -m scripts.index

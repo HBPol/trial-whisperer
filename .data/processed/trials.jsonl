@@ -1,0 +1,58 @@
+{"text": "Study of Foo", "nct_id": "NCT00000001", "section": "title"}
+{"text": "Foo Syndrome", "nct_id": "NCT00000001", "section": "condition"}
+{"text": "Drug: FooDrug", "nct_id": "NCT00000001", "section": "interventions"}
+{"text": "Age 18 to 65", "nct_id": "NCT00000001", "section": "eligibility.inclusion"}
+{"text": "Uncontrolled hypertension", "nct_id": "NCT00000001", "section": "eligibility.exclusion"}
+{"text": "Bar Study", "nct_id": "NCT00000002", "section": "title"}
+{"text": "Bar Disorder", "nct_id": "NCT00000002", "section": "condition"}
+{"text": "Procedure: BarTherapy", "nct_id": "NCT00000002", "section": "interventions"}
+{"text": "Diagnosis of Bar Disorder", "nct_id": "NCT00000002", "section": "eligibility.inclusion"}
+{"text": "Prior Bar Therapy", "nct_id": "NCT00000002", "section": "eligibility.exclusion"}
+{"text": "Trial 3", "nct_id": "NCT00000003", "section": "title"}
+{"text": "Condition 3", "nct_id": "NCT00000003", "section": "condition"}
+{"text": "Drug: Drug 3", "nct_id": "NCT00000003", "section": "interventions"}
+{"text": "Eligible for trial 3", "nct_id": "NCT00000003", "section": "eligibility.inclusion"}
+{"text": "Not eligible for trial 3", "nct_id": "NCT00000003", "section": "eligibility.exclusion"}
+{"text": "{'measure': 'Outcome 3', 'time_frame': '1 year'}", "nct_id": "NCT00000003", "section": "outcomes"}
+{"text": "Trial 4", "nct_id": "NCT00000004", "section": "title"}
+{"text": "Condition 4", "nct_id": "NCT00000004", "section": "condition"}
+{"text": "Drug: Drug 4", "nct_id": "NCT00000004", "section": "interventions"}
+{"text": "Eligible for trial 4", "nct_id": "NCT00000004", "section": "eligibility.inclusion"}
+{"text": "Not eligible for trial 4", "nct_id": "NCT00000004", "section": "eligibility.exclusion"}
+{"text": "{'measure': 'Outcome 4', 'time_frame': '1 year'}", "nct_id": "NCT00000004", "section": "outcomes"}
+{"text": "Trial 5", "nct_id": "NCT00000005", "section": "title"}
+{"text": "Condition 5", "nct_id": "NCT00000005", "section": "condition"}
+{"text": "Drug: Drug 5", "nct_id": "NCT00000005", "section": "interventions"}
+{"text": "Eligible for trial 5", "nct_id": "NCT00000005", "section": "eligibility.inclusion"}
+{"text": "Not eligible for trial 5", "nct_id": "NCT00000005", "section": "eligibility.exclusion"}
+{"text": "{'measure': 'Outcome 5', 'time_frame': '1 year'}", "nct_id": "NCT00000005", "section": "outcomes"}
+{"text": "Trial 6", "nct_id": "NCT00000006", "section": "title"}
+{"text": "Condition 6", "nct_id": "NCT00000006", "section": "condition"}
+{"text": "Drug: Drug 6", "nct_id": "NCT00000006", "section": "interventions"}
+{"text": "Eligible for trial 6", "nct_id": "NCT00000006", "section": "eligibility.inclusion"}
+{"text": "Not eligible for trial 6", "nct_id": "NCT00000006", "section": "eligibility.exclusion"}
+{"text": "{'measure': 'Outcome 6', 'time_frame': '1 year'}", "nct_id": "NCT00000006", "section": "outcomes"}
+{"text": "Trial 7", "nct_id": "NCT00000007", "section": "title"}
+{"text": "Condition 7", "nct_id": "NCT00000007", "section": "condition"}
+{"text": "Drug: Drug 7", "nct_id": "NCT00000007", "section": "interventions"}
+{"text": "Eligible for trial 7", "nct_id": "NCT00000007", "section": "eligibility.inclusion"}
+{"text": "Not eligible for trial 7", "nct_id": "NCT00000007", "section": "eligibility.exclusion"}
+{"text": "{'measure': 'Outcome 7', 'time_frame': '1 year'}", "nct_id": "NCT00000007", "section": "outcomes"}
+{"text": "Trial 8", "nct_id": "NCT00000008", "section": "title"}
+{"text": "Condition 8", "nct_id": "NCT00000008", "section": "condition"}
+{"text": "Drug: Drug 8", "nct_id": "NCT00000008", "section": "interventions"}
+{"text": "Eligible for trial 8", "nct_id": "NCT00000008", "section": "eligibility.inclusion"}
+{"text": "Not eligible for trial 8", "nct_id": "NCT00000008", "section": "eligibility.exclusion"}
+{"text": "{'measure': 'Outcome 8', 'time_frame': '1 year'}", "nct_id": "NCT00000008", "section": "outcomes"}
+{"text": "Trial 9", "nct_id": "NCT00000009", "section": "title"}
+{"text": "Condition 9", "nct_id": "NCT00000009", "section": "condition"}
+{"text": "Drug: Drug 9", "nct_id": "NCT00000009", "section": "interventions"}
+{"text": "Eligible for trial 9", "nct_id": "NCT00000009", "section": "eligibility.inclusion"}
+{"text": "Not eligible for trial 9", "nct_id": "NCT00000009", "section": "eligibility.exclusion"}
+{"text": "{'measure': 'Outcome 9', 'time_frame': '1 year'}", "nct_id": "NCT00000009", "section": "outcomes"}
+{"text": "Trial 10", "nct_id": "NCT00000010", "section": "title"}
+{"text": "Condition 10", "nct_id": "NCT00000010", "section": "condition"}
+{"text": "Drug: Drug 10", "nct_id": "NCT00000010", "section": "interventions"}
+{"text": "Eligible for trial 10", "nct_id": "NCT00000010", "section": "eligibility.inclusion"}
+{"text": "Not eligible for trial 10", "nct_id": "NCT00000010", "section": "eligibility.exclusion"}
+{"text": "{'measure': 'Outcome 10', 'time_frame': '1 year'}", "nct_id": "NCT00000010", "section": "outcomes"}

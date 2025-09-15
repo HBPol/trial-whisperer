@@ -16,18 +16,28 @@ def _load_index() -> None:
         search_client._FAKE_INDEX = [json.loads(line) for line in f]
 
 
-def test_ask_returns_answer():
+def test_ask_returns_answer_and_citations():
     _load_index()
     sample_id = search_client._FAKE_INDEX[0]["nct_id"]
     response = client.post(
         "/ask/", json={"query": "What is this study?", "nct_id": sample_id}
     )
     assert response.status_code == 200
-    assert "answer" in response.json()
+    data = response.json()
+    assert isinstance(data.get("answer"), str)
+    assert data["answer"]
+    assert "citations" in data and isinstance(data["citations"], list)
+    assert len(data["citations"]) >= 1
+    citation = data["citations"][0]
+    assert {"nct_id", "section", "text_snippet"} <= citation.keys()
 
 
-def test_ask_requires_nonempty_query():
+def test_ask_requires_query():
     _load_index()
     sample_id = search_client._FAKE_INDEX[0]["nct_id"]
-    response = client.post("/ask/", json={"query": "", "nct_id": sample_id})
-    assert response.status_code == 400
+    for payload in (
+        {"query": "", "nct_id": sample_id},
+        {"nct_id": sample_id},
+    ):
+        response = client.post("/ask/", json=payload)
+        assert response.status_code == 400
