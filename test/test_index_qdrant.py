@@ -4,7 +4,10 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import httpx
+import pytest
 from qdrant_client import QdrantClient
+from qdrant_client.http.exceptions import ApiException
 from qdrant_client.http.models import PointStruct
 
 from pipeline.index_qdrant import COLLECTION, ensure_collection, index_chunks
@@ -122,3 +125,23 @@ proc_dir = "."
     kwargs = mock_index_chunks.call_args.kwargs
     assert kwargs["client"] is mock_client
     assert Path(kwargs["data_path"]).resolve() == data_file
+
+
+@pytest.mark.parametrize("exc", [httpx.ConnectError("boom"), ApiException("boom")])
+def test_index_chunks_raises_helpful_error_on_connection_failure(monkeypatch, exc):
+    mock_client = MagicMock(spec=QdrantClient)
+    mock_embed = MagicMock()
+    mock_embed.get_sentence_embedding_dimension.return_value = 3
+    chunk = {"nct_id": "NCT0", "section": "title", "text": "hi"}
+
+    monkeypatch.setattr(
+        "pipeline.index_qdrant.ensure_collection", MagicMock(side_effect=exc)
+    )
+
+    with pytest.raises(RuntimeError) as err:
+        index_chunks(client=mock_client, embed_model=mock_embed, chunks=[chunk])
+
+    message = str(err.value)
+    assert "QDRANT_URL" in message
+    assert "QDRANT_API_KEY" in message
+    assert "local Qdrant instance" in message
