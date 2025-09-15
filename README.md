@@ -31,9 +31,14 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp config/appsettings.example.toml config/appsettings.toml
 # Edit config/appsettings.toml with your keys / endpoints
-make seed # small demo dataset + index
+make seed # small demo dataset + index (starts local Qdrant if needed)
 make run
 ```
+
+The seeding step requires an accessible Qdrant instance. If `QDRANT_URL` and
+`QDRANT_API_KEY` are not set, the script will attempt to start a local Qdrant
+container (`docker run -p 6333:6333 qdrant/qdrant`). Ensure Docker is installed
+or provide a remote Qdrant endpoint via `QDRANT_URL`/`QDRANT_API_KEY`.
 
 ### Environment variables
 
