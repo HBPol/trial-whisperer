@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Dict, Iterable, Optional
+from typing import Dict, Iterable, Mapping, Optional
 
 import httpx
 from qdrant_client import QdrantClient
@@ -17,10 +17,51 @@ COLLECTION = "trialwhisperer"
 def ensure_collection(client: QdrantClient, dim: int = 768) -> None:
     """Ensure the Qdrant collection exists with the desired vector size."""
 
-    if COLLECTION not in [c.name for c in client.get_collections().collections]:
-        client.create_collection(
+    vector_config = {"text": VectorParams(size=dim, distance=Distance.COSINE)}
+    existing_collections = {c.name for c in client.get_collections().collections}
+
+    needs_recreate = True
+    if COLLECTION in existing_collections:
+        try:
+            collection_info = client.get_collection(COLLECTION)
+        except ApiException:
+            # If we fail to fetch collection info treat it as needing recreation.
+            pass
+        else:
+            vectors = collection_info.config.params.vectors
+
+            vector_mapping: Mapping[str, object] | None = None
+            if isinstance(vectors, Mapping):
+                vector_mapping = vectors
+            else:
+                to_dict = getattr(vectors, "to_dict", None)
+                if callable(to_dict):
+                    maybe_dict = to_dict()
+                    if isinstance(maybe_dict, Mapping):
+                        vector_mapping = maybe_dict
+
+            if vector_mapping is not None:
+                text_vector = vector_mapping.get("text")
+                size: Optional[int] = None
+                distance: Optional[object] = None
+
+                if isinstance(text_vector, VectorParams):
+                    size = text_vector.size
+                    distance = text_vector.distance
+                elif isinstance(text_vector, Mapping):
+                    size = text_vector.get("size")
+                    distance = text_vector.get("distance")
+
+                if size == dim and (
+                    distance == Distance.COSINE
+                    or getattr(distance, "value", distance) == Distance.COSINE.value
+                ):
+                    needs_recreate = False
+
+    if needs_recreate:
+        client.recreate_collection(
             collection_name=COLLECTION,
-            vectors_config=VectorParams(size=dim, distance=Distance.COSINE),
+            vectors_config=vector_config,
         )
 
 
@@ -66,7 +107,7 @@ def index_chunks(
     points = [
         PointStruct(
             id=i,
-            vector=vector,
+            vector={"text": vector},
             payload={k: c[k] for k in ("nct_id", "section", "text")},
         )
         for i, (c, vector) in enumerate(zip(chunks, vectors))
