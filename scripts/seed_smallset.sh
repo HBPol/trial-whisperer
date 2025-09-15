@@ -116,7 +116,7 @@ main() {
   ensure_qdrant
 
   # ---- Index documents ----
-  python scripts/index.py
+  python -m scripts.index
 }
 
 # Execute only if run directly
