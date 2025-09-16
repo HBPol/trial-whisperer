@@ -19,3 +19,15 @@ collection = "trialwhisperer"
 [data]
 raw_dir = ".data/raw"
 proc_dir = ".data/processed"
+
+
+[data.api]
+page_size = 100
+max_studies = 200
+
+
+[data.api.params]
+"query.term" = "glioblastoma"
+"filter.overallStatus" = ["Recruiting", "Active, not recruiting"]
+"filter.studyType" = ["Interventional"]
+"filter.phase" = ["Phase 2", "Phase 3"]

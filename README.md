@@ -32,8 +32,7 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp config/appsettings.example.toml config/appsettings.toml
 # Edit config/appsettings.toml with your keys / endpoints
-make seed # small demo dataset + index (starts local Qdrant if needed)
-python scripts/index.py # index processed trials into Qdrant
+make seed # downloads trials from ClinicalTrials.gov and indexes them
 make run
 ```
 
@@ -41,6 +40,53 @@ The seeding step requires an accessible Qdrant instance. If `QDRANT_URL` and
 `QDRANT_API_KEY` are not set, the script will attempt to start a local Qdrant
 container (`docker run -p 6333:6333 qdrant/qdrant`). Ensure Docker is installed
 or provide a remote Qdrant endpoint via `QDRANT_URL`/`QDRANT_API_KEY`.
+
+
+### Ingesting ClinicalTrials.gov trials
+
+`make seed` (or `scripts/seed_smallset.sh`) runs the ingestion pipeline followed
+by the indexing step:
+
+1. `python -m pipeline.pipeline --from-api ...` downloads study records from
+   the [ClinicalTrials.gov Data API](https://clinicaltrials.gov/data-api/) using
+   the parameters defined in your configuration file.
+2. The pipeline normalizes the JSON payload into the schema expected by
+   `pipeline.normalize`/`pipeline.chunk` and writes
+   `.data/processed/trials.jsonl` with the real NCT IDs from the feed.
+3. `python -m scripts.index` embeds the chunks and upserts them into Qdrant so
+   the application can serve queries immediately after seeding.
+
+Configure the API request under the `[data.api]` section of
+`config/appsettings.toml`. The default example downloads a modest cohort of
+recruiting glioblastoma trials:
+
+```toml
+[data.api]
+page_size = 100            # API page size (max 100)
+max_studies = 200          # Total number of studies to ingest
+
+[data.api.params]
+"query.term" = "glioblastoma"
+"filter.overallStatus" = ["Recruiting", "Active, not recruiting"]
+"filter.studyType" = ["Interventional"]
+"filter.phase" = ["Phase 2", "Phase 3"]
+```
+
+Keys in `[data.api.params]` correspond directly to the official `studies`
+endpoint parameters (e.g. `query.term`, `filter.overallStatus`, `filter.phase`).
+Add or repeat keys to narrow the cohort further—for example
+`--param filter.locationFacility=Boston` on the command line or an additional
+`"filter.locationFacility"` entry in the TOML file.
+
+You can run the ingestion manually when experimenting:
+
+```bash
+python -m pipeline.pipeline --from-api --config config/appsettings.toml \
+  --max-studies 50 --param "filter.studyType=Interventional"
+```
+
+Re-run `python -m scripts.index` after changing any ingestion parameters so the
+vector index reflects the freshly downloaded trials.
 
 
 ## Run with Docker
