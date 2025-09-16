@@ -338,6 +338,8 @@ typing-inspection==0.4.1
     # via
     #   pydantic
     #   pydantic-settings
+uvicorn==0.32.1
+    # via -r requirements.in
 urllib3==2.5.0
     # via
     #   qdrant-client

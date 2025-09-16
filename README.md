@@ -42,14 +42,79 @@ The seeding step requires an accessible Qdrant instance. If `QDRANT_URL` and
 container (`docker run -p 6333:6333 qdrant/qdrant`). Ensure Docker is installed
 or provide a remote Qdrant endpoint via `QDRANT_URL`/`QDRANT_API_KEY`.
 
+
+## Run with Docker
+
+```bash
+docker build -t trial-whisperer .
+# assumes config/appsettings.toml exists locally
+docker run --rm -p 8000:8000 \
+  -v $(pwd)/config/appsettings.toml:/app/config/appsettings.toml:ro \
+  trial-whisperer
+```
+
+This mounts your local `config/appsettings.toml` into the container, making it
+the single source of configuration. Alternatively, copy the file into the
+image at build time if you prefer.
+
+The container exposes the FastAPI app on port 8000 by default.
+
 ### Environment variables
 
-The application reads configuration from `config/appsettings.toml`. The following
-environment variables can override values in that file:
+Environment variables are optional and override values in
+`config/appsettings.toml`. For example:
+
+```bash
+docker run --rm -p 8000:8000 \
+  -v $(pwd)/config/appsettings.toml:/app/config/appsettings.toml:ro \
+  -e LLM_API_KEY="override" \
+  trial-whisperer
+```
 
 - `LLM_API_KEY` – API key for your LLM provider.
-- `QDRANT_URL` – Qdrant cloud endpoint.
+- `QDRANT_URL` – Qdrant cloud endpoint (including port number e.g. `https://YOUR.QDRANT.URL:6333`).
 - `QDRANT_API_KEY` – Qdrant authentication token.
+
+
+## API
+
+### Available endpoints
+
+- `GET /trial/{nct_id}` – Retrieve structured metadata for a clinical trial.
+
+  ```bash
+  curl http://localhost:8000/trial/NCT01234567
+  ```
+
+- `POST /ask` – Ask a question about a trial and receive an answer with citations.
+
+  ```bash
+  curl -X POST http://localhost:8000/ask \
+    -H "Content-Type: application/json" \
+    -d '{
+      "query": "Summarize the inclusion criteria",
+      "nct_id": "NCT01234567"
+    }'
+  ```
+
+- `POST /check-eligibility` – Evaluate a patient profile against a trial's eligibility criteria.
+
+  ```bash
+  curl -X POST http://localhost:8000/check-eligibility \
+    -H "Content-Type: application/json" \
+    -d '{
+      "nct_id": "NCT01234567",
+      "patient": {
+        "age": 55,
+        "sex": "female",
+        "labs": {"ECOG": 1}
+      }
+    }'
+  ```
+
+Interactive API exploration is available via Swagger UI at
+`http://localhost:8000/docs` and via ReDoc at `http://localhost:8000/redoc`.
+
 
 ## Contributing
 Development follows a TDD approach. Please write or update tests before implementing new functionality.
