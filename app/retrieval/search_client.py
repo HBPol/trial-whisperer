@@ -1,9 +1,11 @@
-from typing import List, Optional
+from typing import Iterable, List, Optional, Tuple
 
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as rest
 
 from app.deps import get_settings
+
+from . import trial_store
 
 settings = get_settings()
 
@@ -74,30 +76,46 @@ def retrieve_chunks(query: str, nct_id: Optional[str] = None, k: int = 8) -> Lis
     return results[:k]
 
 
-def retrieve_criteria_for_trial(nct_id: str) -> dict | None:
-    if _client:
-        # TODO: fetch inclusion/exclusion split from vector DB
-        pass
+def _collect_criteria(
+    sections: Iterable[Tuple[Optional[str], Optional[str]]],
+) -> dict | None:
 
     inclusion: List[str] = []
     exclusion: List[str] = []
 
-    for chunk in _FAKE_INDEX:
-        if chunk.get("nct_id") != nct_id:
+    for section, text in sections:
+        if not section or not isinstance(section, str):
             continue
-
-        section = (chunk.get("section") or "").lower()
-        text = chunk.get("text") or ""
-
+        if text is None:
+            continue
+        if not isinstance(text, str):
+            text = str(text)
         if not text:
             continue
 
-        if section.startswith("eligibility.inclusion"):
+        key = section.lower()
+        if key.startswith("eligibility.inclusion"):
             inclusion.append(text)
-        elif section.startswith("eligibility.exclusion"):
+        elif key.startswith("eligibility.exclusion"):
             exclusion.append(text)
 
     if not inclusion and not exclusion:
         return None
 
     return {"inclusion": inclusion, "exclusion": exclusion}
+
+
+def retrieve_criteria_for_trial(nct_id: str) -> dict | None:
+    trial = trial_store.get_trial_metadata(nct_id)
+    if trial:
+        criteria = _collect_criteria(trial.sections.items())
+        if criteria:
+            return criteria
+
+    return _collect_criteria(
+        (
+            (chunk.get("section"), chunk.get("text"))
+            for chunk in _FAKE_INDEX
+            if chunk.get("nct_id") == nct_id
+        )
+    )
