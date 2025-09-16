@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from functools import lru_cache
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 from app.models.schemas import TrialMetadata
 
@@ -16,6 +16,20 @@ def _normalise_path(data_path: Path | str) -> str:
     if isinstance(data_path, Path):
         return str(data_path)
     return data_path
+
+
+def normalize_section_entry(section: object, text: object) -> Tuple[str, str] | None:
+    """Return a ``(section, text)`` tuple when both values are usable."""
+
+    if not section or not isinstance(section, str):
+        return None
+    if text is None:
+        return None
+    if not isinstance(text, str):
+        text = str(text)
+    if not text:
+        return None
+    return section, text
 
 
 def _build_index(data_path: str) -> Dict[str, TrialMetadata]:
@@ -35,15 +49,14 @@ def _build_index(data_path: str) -> Dict[str, TrialMetadata]:
                 continue
 
             nct_id = chunk.get("nct_id")
-            section = chunk.get("section")
-            text = chunk.get("text")
-
-            if not isinstance(nct_id, str) or not isinstance(section, str):
+            if not isinstance(nct_id, str):
                 continue
-            if text is None:
+            normalized = normalize_section_entry(
+                chunk.get("section"), chunk.get("text")
+            )
+            if normalized is None:
                 continue
-            if not isinstance(text, str):
-                text = str(text)
+            section, text = normalized
 
             trial = trials.get(nct_id)
             if trial is None:

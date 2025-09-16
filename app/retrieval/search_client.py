@@ -84,20 +84,16 @@ def _collect_criteria(
     exclusion: List[str] = []
 
     for section, text in sections:
-        if not section or not isinstance(section, str):
+        normalized = trial_store.normalize_section_entry(section, text)
+        if normalized is None:
             continue
-        if text is None:
-            continue
-        if not isinstance(text, str):
-            text = str(text)
-        if not text:
-            continue
+        section_key, text_value = normalized
 
         key = section.lower()
         if key.startswith("eligibility.inclusion"):
-            inclusion.append(text)
+            inclusion.append(text_value)
         elif key.startswith("eligibility.exclusion"):
-            exclusion.append(text)
+            exclusion.append(text_value)
 
     if not inclusion and not exclusion:
         return None
