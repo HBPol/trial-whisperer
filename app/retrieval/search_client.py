@@ -74,8 +74,30 @@ def retrieve_chunks(query: str, nct_id: Optional[str] = None, k: int = 8) -> Lis
     return results[:k]
 
 
-def retrieve_criteria_for_trial(nct_id: str) -> dict:
+def retrieve_criteria_for_trial(nct_id: str) -> dict | None:
     if _client:
         # TODO: fetch inclusion/exclusion split from vector DB
         pass
-    return {"inclusion": [], "exclusion": []}
+
+    inclusion: List[str] = []
+    exclusion: List[str] = []
+
+    for chunk in _FAKE_INDEX:
+        if chunk.get("nct_id") != nct_id:
+            continue
+
+        section = (chunk.get("section") or "").lower()
+        text = chunk.get("text") or ""
+
+        if not text:
+            continue
+
+        if section.startswith("eligibility.inclusion"):
+            inclusion.append(text)
+        elif section.startswith("eligibility.exclusion"):
+            exclusion.append(text)
+
+    if not inclusion and not exclusion:
+        return None
+
+    return {"inclusion": inclusion, "exclusion": exclusion}
