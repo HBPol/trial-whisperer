@@ -1,3 +1,7 @@
+import json
+import re
+from collections import Counter
+from pathlib import Path
 from typing import Iterable, List, Optional, Tuple
 
 from qdrant_client import QdrantClient
@@ -15,6 +19,73 @@ if settings.retrieval_backend == "qdrant" and settings.qdrant_url:
     _client = QdrantClient(url=settings.qdrant_url, api_key=settings.qdrant_api_key)
 
 _FAKE_INDEX: List[dict] = []
+_FALLBACK_INDEX_INITIALIZED = False
+_TOKEN_PATTERN = re.compile(r"[a-z0-9]+", re.IGNORECASE)
+
+
+def _ensure_fake_index_loaded() -> None:
+    """Populate ``_FAKE_INDEX`` from the processed trials dataset."""
+
+    global _FALLBACK_INDEX_INITIALIZED
+
+    if _client:
+        return
+
+    if _FAKE_INDEX:
+        _FALLBACK_INDEX_INITIALIZED = True
+        return
+
+    if _FALLBACK_INDEX_INITIALIZED:
+        return
+
+    _FALLBACK_INDEX_INITIALIZED = True
+
+    data_path = Path(trial_store.DEFAULT_TRIALS_PATH)
+    if not data_path.exists():
+        return
+
+    try:
+        with data_path.open("r", encoding="utf-8") as f:
+            for raw_line in f:
+                line = raw_line.strip()
+                if not line:
+                    continue
+                try:
+                    payload = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+
+                nct_id = payload.get("nct_id")
+                if not isinstance(nct_id, str):
+                    continue
+
+                normalized = trial_store.normalize_section_entry(
+                    payload.get("section"), payload.get("text")
+                )
+                if normalized is None:
+                    continue
+
+                section, text = normalized
+                _FAKE_INDEX.append({"nct_id": nct_id, "section": section, "text": text})
+    except OSError:
+        return
+
+
+def _tokenize(text: str | None) -> List[str]:
+    if not text:
+        return []
+    return _TOKEN_PATTERN.findall(text.lower())
+
+
+def _score_chunk(query_tokens: List[str], chunk: dict) -> float:
+    if not query_tokens:
+        return 0.0
+    combined = " ".join(filter(None, [chunk.get("section"), chunk.get("text")]))
+    tokens = _tokenize(combined)
+    if not tokens:
+        return 0.0
+    counts = Counter(tokens)
+    return float(sum(counts[token] for token in query_tokens))
 
 
 def retrieve_chunks(query: str, nct_id: Optional[str] = None, k: int = 8) -> List[dict]:
@@ -72,8 +143,26 @@ def retrieve_chunks(query: str, nct_id: Optional[str] = None, k: int = 8) -> Lis
                 for r in results
             ]
 
-    results = [c for c in _FAKE_INDEX if (not nct_id or c.get("nct_id") == nct_id)]
-    return results[:k]
+    _ensure_fake_index_loaded()
+
+    candidates = [
+        chunk for chunk in _FAKE_INDEX if (not nct_id or chunk.get("nct_id") == nct_id)
+    ]
+
+    if not candidates:
+        return []
+
+    query_tokens = _tokenize(query)
+    if not query_tokens:
+        return candidates[:k]
+
+    scored: List[Tuple[float, int, dict]] = []
+    for idx, chunk in enumerate(candidates):
+        score = _score_chunk(query_tokens, chunk)
+        scored.append((score, idx, chunk))
+
+    scored.sort(key=lambda entry: (-entry[0], entry[1]))
+    return [entry[2] for entry in scored[:k]]
 
 
 def _collect_criteria(
@@ -107,7 +196,7 @@ def retrieve_criteria_for_trial(nct_id: str) -> dict | None:
         criteria = _collect_criteria(trial.sections.items())
         if criteria:
             return criteria
-
+    _ensure_fake_index_loaded()
     return _collect_criteria(
         (
             (chunk.get("section"), chunk.get("text"))
