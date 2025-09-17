@@ -67,22 +67,25 @@ max_studies = 200          # Total number of studies to ingest
 
 [data.api.params]
 "query.term" = "glioblastoma"
-"filter.overallStatus" = ["Recruiting", "Active, not recruiting"]
-"filter.studyType" = ["Interventional"]
-"filter.phase" = ["Phase 2", "Phase 3"]
+"filter.overallStatus" = ["RECRUITING", "ACTIVE_NOT_RECRUITING"]
+"filter.studyType" = ["INTERVENTIONAL"]
+"filter.phase" = ["PHASE_2", "PHASE_3"]
 ```
 
 Keys in `[data.api.params]` correspond directly to the official `studies`
 endpoint parameters (e.g. `query.term`, `filter.overallStatus`, `filter.phase`).
-Add or repeat keys to narrow the cohort further—for example
-`--param filter.locationFacility=Boston` on the command line or an additional
-`"filter.locationFacility"` entry in the TOML file.
+Most filter values are enumerations—use the API's canonical codes such as
+`INTERVENTIONAL`, `PHASE_2`, or `ACTIVE_NOT_RECRUITING` rather than the
+human-readable labels shown on the website. Add or repeat keys to narrow the
+cohort further—for example `--param filter.locationFacility=Boston` on the
+command line or an additional `"filter.locationFacility"` entry in the TOML
+file.
 
 You can run the ingestion manually when experimenting:
 
 ```bash
 python -m pipeline.pipeline --from-api --config config/appsettings.toml \
-  --max-studies 50 --param "filter.studyType=Interventional"
+  --max-studies 50 --param "filter.studyType=INTERVENTIONAL"
 ```
 
 Re-run `python -m scripts.index` after changing any ingestion parameters so the
