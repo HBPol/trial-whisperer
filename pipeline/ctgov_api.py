@@ -10,7 +10,7 @@ __all__ = ["CtGovApiError", "CtGovClient"]
 
 
 DEFAULT_BASE_URL = "https://clinicaltrials.gov/api/v2"
-DEFAULT_USER_AGENT = "trial-whisperer/ingest (+https://clinicaltrials.gov)"
+DEFAULT_USER_AGENT = "TrialWhisperer/ingest (+https://trialwhisperer.ai/contact)"
 
 
 class CtGovApiError(RuntimeError):

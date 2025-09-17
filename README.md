@@ -92,8 +92,10 @@ Refer to the [API query reference](https://clinicaltrials.gov/data-api/about-api
 full list of supported `AREA[...]` tokens.
 
 ClinicalTrials.gov asks API consumers to identify a responsible contact in
-their `User-Agent` or request headers. Provide your own organization string (or
-email address) via `data.api.user_agent` or add a dedicated header to stay in
+their `User-Agent` or request headers. TrialWhisperer ships with
+`TrialWhisperer/ingest (+https://trialwhisperer.ai/contact)` as the default
+identifier, but you should provide your own organization string (or email
+address) via `data.api.user_agent` or add a dedicated header to stay in
 compliance:
 
 ```toml
