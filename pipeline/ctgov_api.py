@@ -10,6 +10,7 @@ __all__ = ["CtGovApiError", "CtGovClient"]
 
 
 DEFAULT_BASE_URL = "https://clinicaltrials.gov/api/v2"
+DEFAULT_USER_AGENT = "trial-whisperer/ingest (+https://clinicaltrials.gov)"
 
 
 class CtGovApiError(RuntimeError):
@@ -49,11 +50,25 @@ class CtGovClient:
         timeout: float = 30.0,
         client: httpx.Client | None = None,
         trust_env: bool | None = None,
+        headers: Mapping[str, Any] | None = None,
+        user_agent: str | None = None,
     ) -> None:
         headers = {
             "Accept": "application/json",
             "User-Agent": "trial-whisperer/ingest (+https://clinicaltrials.gov)",
         }
+        prepared_headers: dict[str, str] = {"Accept": "application/json"}
+
+        if user_agent and user_agent.strip():
+            prepared_headers["User-Agent"] = user_agent.strip()
+        else:
+            prepared_headers["User-Agent"] = DEFAULT_USER_AGENT
+
+        if headers:
+            for key, value in headers.items():
+                if value is None:
+                    continue
+                prepared_headers[str(key)] = str(value)
 
         if client is None:
             if trust_env is None:
@@ -61,15 +76,13 @@ class CtGovClient:
             client = httpx.Client(
                 base_url=base_url,
                 timeout=timeout,
-                headers=headers,
+                headers=prepared_headers,
                 trust_env=trust_env,
             )
             self._owns_client = True
         else:
-            # Do not override headers of a provided client; merge ours gently.
-            client.headers.update(
-                {k: v for k, v in headers.items() if k not in client.headers}
-            )
+            for key, value in prepared_headers.items():
+                client.headers[key] = value
             self._owns_client = False
 
         self._client = client

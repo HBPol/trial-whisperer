@@ -25,11 +25,13 @@ proc_dir = ".data/processed"
 # ClinicalTrials.gov API base URL (defaults to https://clinicaltrials.gov/api/v2)
 page_size = 100
 max_studies = 200
+user_agent = "my-app/1.0 (admin@example.com)"
 
 
 [data.api.params]
 "query.term" = "glioblastoma"
 "filter.overallStatus" = ["RECRUITING", "ACTIVE_NOT_RECRUITING"]
-#"filter.studyType" = ["INTERVENTIONAL"]
-#"filter.phase" = ["PHASE_2", "PHASE_3"]
 
+
+[data.api.headers]
+"X-Contact" = "admin@example.com"

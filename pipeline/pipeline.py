@@ -65,7 +65,7 @@ def _default_output_path(config: Mapping[str, Any]) -> Path:
 
 def _api_settings(
     config: Mapping[str, Any],
-) -> tuple[dict[str, Any], int | None, int | None]:
+) -> tuple[dict[str, Any], int | None, int | None, dict[str, Any]]:
     data_cfg = config.get("data", {}) or {}
     api_cfg = data_cfg.get("api", {}) or {}
     params = api_cfg.get("params", {}) or {}
@@ -86,7 +86,23 @@ def _api_settings(
     elif not isinstance(max_studies, int):
         max_studies = None
 
-    return dict(params), page_size, max_studies
+    client_settings: dict[str, Any] = {}
+
+    user_agent = api_cfg.get("user_agent")
+    if isinstance(user_agent, str) and user_agent.strip():
+        client_settings["user_agent"] = user_agent.strip()
+
+    headers_cfg = api_cfg.get("headers")
+    if isinstance(headers_cfg, Mapping):
+        cleaned_headers = {
+            str(key): str(value)
+            for key, value in headers_cfg.items()
+            if value is not None
+        }
+        if cleaned_headers:
+            client_settings["headers"] = cleaned_headers
+
+    return dict(params), page_size, max_studies, client_settings
 
 
 def _append_param(params: dict[str, Any], key: str, value: str) -> None:
@@ -142,7 +158,7 @@ def main(argv: Sequence[str] | None = None) -> Path:
     output_path = args.output or _default_output_path(config)
 
     if args.from_api:
-        params, cfg_page_size, cfg_max_studies = _api_settings(config)
+        params, cfg_page_size, cfg_max_studies, client_settings = _api_settings(config)
 
         if args.query_term:
             params["query.term"] = args.query_term
@@ -156,11 +172,19 @@ def main(argv: Sequence[str] | None = None) -> Path:
 
         from .download import fetch_trial_records
 
-        records = fetch_trial_records(
-            params=params,
-            page_size=page_size,
-            max_studies=max_studies,
-        )
+        fetch_kwargs = {
+            "params": params,
+            "page_size": page_size,
+            "max_studies": max_studies,
+        }
+
+        if client_settings:
+            from .ctgov_api import CtGovClient
+
+            with CtGovClient(**client_settings) as api_client:
+                records = fetch_trial_records(client=api_client, **fetch_kwargs)
+        else:
+            records = fetch_trial_records(**fetch_kwargs)
         return process_trials(records=records, output_path=output_path)
 
     if args.xml_dir is None:

@@ -46,6 +46,23 @@ def test_fetch_studies_adds_defaults_and_paginates():
     assert len(calls) == 2
 
 
+def test_fetch_studies_uses_custom_user_agent():
+    captured: dict[str, str | None] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["user_agent"] = request.headers.get("User-Agent")
+        return httpx.Response(200, json={"studies": []})
+
+    transport = httpx.MockTransport(handler)
+    with httpx.Client(
+        transport=transport, base_url="https://clinicaltrials.gov/api/v2"
+    ) as http_client:
+        client = CtGovClient(client=http_client, user_agent="custom-agent/1.0")
+        client.fetch_studies()
+
+    assert captured["user_agent"] == "custom-agent/1.0"
+
+
 def test_fetch_studies_serializes_iterable_params():
     captured: list[list[tuple[str, str]]] = []
 

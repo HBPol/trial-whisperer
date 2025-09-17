@@ -68,24 +68,52 @@ max_studies = 200          # Total number of studies to ingest
 [data.api.params]
 "query.term" = "glioblastoma"
 "filter.overallStatus" = ["RECRUITING", "ACTIVE_NOT_RECRUITING"]
-"filter.studyType" = ["INTERVENTIONAL"]
-"filter.phase" = ["PHASE_2", "PHASE_3"]
 ```
 
 Keys in `[data.api.params]` correspond directly to the official `studies`
-endpoint parameters (e.g. `query.term`, `filter.overallStatus`, `filter.phase`).
-Most filter values are enumerations—use the API's canonical codes such as
-`INTERVENTIONAL`, `PHASE_2`, or `ACTIVE_NOT_RECRUITING` rather than the
-human-readable labels shown on the website. Add or repeat keys to narrow the
-cohort further—for example `--param filter.locationFacility=Boston` on the
-command line or an additional `"filter.locationFacility"` entry in the TOML
-file.
+endpoint parameters (e.g. `query.term`, `filter.overallStatus`). Most filter
+values are enumerations—use the API's canonical codes such as
+`ACTIVE_NOT_RECRUITING` rather than the human-readable labels shown on the
+website. Add or repeat keys to narrow the cohort further—for example `--param
+filter.locationFacility=Boston` on the command line or an additional
+`"filter.locationFacility"` entry in the TOML file.
+
+As of September 2025 the v2 API does not yet expose dedicated
+`filter.studyType` or `filter.phase` parameters; sending them results in an HTTP
+400 response. To constrain those attributes, embed an advanced search clause
+inside `query.term`, mirroring the syntax used by ClinicalTrials.gov's
+Advanced Search. For example:
+
+```toml
+"query.term" = "glioblastoma AND AREA[StudyType]StudyType=Interventional AND AREA[Phase]Phase=Phase 2"
+```
+
+Refer to the [API query reference](https://clinicaltrials.gov/data-api/about-api#query) for the
+full list of supported `AREA[...]` tokens.
+
+ClinicalTrials.gov asks API consumers to identify a responsible contact in
+their `User-Agent` or request headers. Provide your own organization string (or
+email address) via `data.api.user_agent` or add a dedicated header to stay in
+compliance:
+
+```toml
+[data.api]
+user_agent = "my-app/1.0 (admin@example.com)"
+
+[data.api.headers]
+"X-Contact" = "admin@example.com"
+```
+
+The pipeline will merge these values into every API call while keeping the
+default headers when the override is omitted.
+
 
 You can run the ingestion manually when experimenting:
 
 ```bash
 python -m pipeline.pipeline --from-api --config config/appsettings.toml \
-  --max-studies 50 --param "filter.studyType=INTERVENTIONAL"
+  --max-studies 50 \
+  --query-term 'glioblastoma AND AREA[StudyType]StudyType=Interventional'
 ```
 
 Re-run `python -m scripts.index` after changing any ingestion parameters so the
