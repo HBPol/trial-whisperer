@@ -30,6 +30,6 @@ max_studies = 200
 [data.api.params]
 "query.term" = "glioblastoma"
 "filter.overallStatus" = ["RECRUITING", "ACTIVE_NOT_RECRUITING"]
-"filter.studyType" = ["INTERVENTIONAL"]
-"filter.phase" = ["PHASE_2", "PHASE_3"]
+#"filter.studyType" = ["INTERVENTIONAL"]
+#"filter.phase" = ["PHASE_2", "PHASE_3"]
 
