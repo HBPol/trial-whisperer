@@ -32,7 +32,7 @@ def test_fetch_studies_adds_defaults_and_paginates():
 
     transport = httpx.MockTransport(handler)
     with httpx.Client(
-        transport=transport, base_url="https://clinicaltrials.gov/data-api"
+        transport=transport, base_url="https://clinicaltrials.gov/api/v2"
     ) as http_client:
         client = CtGovClient(client=http_client)
         studies = client.fetch_studies(
@@ -60,7 +60,7 @@ def test_fetch_studies_honours_max_studies():
 
     transport = httpx.MockTransport(handler)
     with httpx.Client(
-        transport=transport, base_url="https://clinicaltrials.gov/data-api"
+        transport=transport, base_url="https://clinicaltrials.gov/api/v2"
     ) as http_client:
         client = CtGovClient(client=http_client)
         studies = client.fetch_studies(max_studies=1)
@@ -75,7 +75,7 @@ def test_fetch_studies_raises_on_invalid_payload():
 
     transport = httpx.MockTransport(handler)
     with httpx.Client(
-        transport=transport, base_url="https://clinicaltrials.gov/data-api"
+        transport=transport, base_url="https://clinicaltrials.gov/api/v2"
     ) as http_client:
         client = CtGovClient(client=http_client)
         with pytest.raises(CtGovApiError):

@@ -48,7 +48,7 @@ or provide a remote Qdrant endpoint via `QDRANT_URL`/`QDRANT_API_KEY`.
 by the indexing step:
 
 1. `python -m pipeline.pipeline --from-api ...` downloads study records from
-   the [ClinicalTrials.gov Data API](https://clinicaltrials.gov/data-api/) using
+   the [ClinicalTrials.gov API v2](https://clinicaltrials.gov/api/v2/) using
    the parameters defined in your configuration file.
 2. The pipeline normalizes the JSON payload into the schema expected by
    `pipeline.normalize`/`pipeline.chunk` and writes

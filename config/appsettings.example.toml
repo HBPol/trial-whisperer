@@ -22,6 +22,7 @@ proc_dir = ".data/processed"
 
 
 [data.api]
+# ClinicalTrials.gov API base URL (defaults to https://clinicaltrials.gov/api/v2)
 page_size = 100
 max_studies = 200
 

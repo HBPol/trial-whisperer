@@ -9,7 +9,7 @@ import httpx
 __all__ = ["CtGovApiError", "CtGovClient"]
 
 
-DEFAULT_BASE_URL = "https://clinicaltrials.gov/data-api"
+DEFAULT_BASE_URL = "https://clinicaltrials.gov/api/v2"
 
 
 class CtGovApiError(RuntimeError):
