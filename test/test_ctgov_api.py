@@ -46,6 +46,33 @@ def test_fetch_studies_adds_defaults_and_paginates():
     assert len(calls) == 2
 
 
+def test_fetch_studies_serializes_iterable_params():
+    captured: list[list[tuple[str, str]]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.append(list(request.url.params.multi_items()))
+        body = {"studies": []}
+        return httpx.Response(200, json=body)
+
+    transport = httpx.MockTransport(handler)
+    with httpx.Client(
+        transport=transport, base_url="https://clinicaltrials.gov/api/v2"
+    ) as http_client:
+        client = CtGovClient(client=http_client)
+        client.fetch_studies(
+            params={
+                "filter.overallStatus": ["RECRUITING", None, "ACTIVE"],
+            },
+            page_size=None,
+        )
+
+    assert captured, "Expected request to be captured"
+    status_params = [
+        value for key, value in captured[0] if key == "filter.overallStatus"
+    ]
+    assert status_params == ["RECRUITING,ACTIVE"]
+
+
 def test_fetch_studies_honours_max_studies():
     responses = [
         {"studies": [{"protocolSection": {"identificationModule": {"nctId": "NCT1"}}}]},

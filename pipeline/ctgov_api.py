@@ -27,15 +27,14 @@ def _flatten_params(params: Mapping[str, Any] | None) -> list[tuple[str, str]]:
         if value is None:
             continue
 
-        if isinstance(value, (list, tuple, set)):
-            values: Iterable[Any] = value
-        else:
-            values = (value,)
-
-        for item in values:
-            if item is None:
+        if isinstance(value, Iterable) and not isinstance(value, (str, bytes)):
+            serialized_items = [str(item) for item in value if item is not None]
+            if not serialized_items:
                 continue
-            flattened.append((key, str(item)))
+            flattened.append((key, ",".join(serialized_items)))
+            continue
+
+        flattened.append((key, str(value)))
 
     return flattened
 
