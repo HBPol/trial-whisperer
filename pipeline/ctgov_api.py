@@ -53,10 +53,6 @@ class CtGovClient:
         headers: Mapping[str, Any] | None = None,
         user_agent: str | None = None,
     ) -> None:
-        headers = {
-            "Accept": "application/json",
-            "User-Agent": "trial-whisperer/ingest (+https://clinicaltrials.gov)",
-        }
         prepared_headers: dict[str, str] = {"Accept": "application/json"}
 
         if user_agent and user_agent.strip():
@@ -81,6 +77,8 @@ class CtGovClient:
             )
             self._owns_client = True
         else:
+            if "User-Agent" in client.headers:
+                del client.headers["User-Agent"]
             for key, value in prepared_headers.items():
                 client.headers[key] = value
             self._owns_client = False
