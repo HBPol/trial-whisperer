@@ -5,7 +5,7 @@ from __future__ import annotations
 from contextlib import nullcontext
 from typing import Any, Dict, Iterable, Mapping
 
-from .ctgov_api import CtGovClient
+from .ctgov_api import CtGovApiClientProtocol, CtGovClient
 
 __all__ = ["fetch_trial_records", "study_to_record"]
 
@@ -120,7 +120,7 @@ def fetch_trial_records(
     params: Mapping[str, Any] | None = None,
     page_size: int | None = 100,
     max_studies: int | None = None,
-    client: CtGovClient | None = None,
+    client: CtGovApiClientProtocol | None = None,
 ) -> list[Dict[str, Any]]:
     """Fetch and normalize study records from the Data API."""
 
