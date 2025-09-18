@@ -4,6 +4,14 @@ import pytest
 from pipeline.ctgov_api import CtGovApiError, CtGovClient
 
 
+def test_client_uses_custom_base_url():
+    client = CtGovClient(base_url="https://api.example.test/v2")
+    try:
+        assert client._client.base_url == httpx.URL("https://api.example.test/v2/")
+    finally:
+        client.close()
+
+
 def test_fetch_studies_adds_defaults_and_paginates():
     calls: list[dict[str, str]] = []
 
@@ -32,7 +40,7 @@ def test_fetch_studies_adds_defaults_and_paginates():
 
     transport = httpx.MockTransport(handler)
     with httpx.Client(
-        transport=transport, base_url="https://clinicaltrials.gov/api/v2"
+        transport=transport, base_url="https://www.clinicaltrials.gov/api/v2"
     ) as http_client:
         client = CtGovClient(client=http_client)
         studies = client.fetch_studies(
@@ -55,7 +63,7 @@ def test_fetch_studies_uses_custom_user_agent():
 
     transport = httpx.MockTransport(handler)
     with httpx.Client(
-        transport=transport, base_url="https://clinicaltrials.gov/api/v2"
+        transport=transport, base_url="https://www.clinicaltrials.gov/api/v2"
     ) as http_client:
         client = CtGovClient(client=http_client, user_agent="custom-agent/1.0")
         client.fetch_studies()
@@ -73,7 +81,7 @@ def test_fetch_studies_serializes_iterable_params():
 
     transport = httpx.MockTransport(handler)
     with httpx.Client(
-        transport=transport, base_url="https://clinicaltrials.gov/api/v2"
+        transport=transport, base_url="https://www.clinicaltrials.gov/api/v2"
     ) as http_client:
         client = CtGovClient(client=http_client)
         client.fetch_studies(
@@ -104,7 +112,7 @@ def test_fetch_studies_honours_max_studies():
 
     transport = httpx.MockTransport(handler)
     with httpx.Client(
-        transport=transport, base_url="https://clinicaltrials.gov/api/v2"
+        transport=transport, base_url="https://www.clinicaltrials.gov/api/v2"
     ) as http_client:
         client = CtGovClient(client=http_client)
         studies = client.fetch_studies(max_studies=1)
@@ -119,7 +127,7 @@ def test_fetch_studies_raises_on_invalid_payload():
 
     transport = httpx.MockTransport(handler)
     with httpx.Client(
-        transport=transport, base_url="https://clinicaltrials.gov/api/v2"
+        transport=transport, base_url="https://www.clinicaltrials.gov/api/v2"
     ) as http_client:
         client = CtGovClient(client=http_client)
         with pytest.raises(CtGovApiError):

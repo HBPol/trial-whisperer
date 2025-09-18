@@ -88,6 +88,10 @@ def _api_settings(
 
     client_settings: dict[str, Any] = {}
 
+    base_url = api_cfg.get("base_url")
+    if isinstance(base_url, str) and base_url.strip():
+        client_settings["base_url"] = base_url.strip()
+
     user_agent = api_cfg.get("user_agent")
     if isinstance(user_agent, str) and user_agent.strip():
         client_settings["user_agent"] = user_agent.strip()
