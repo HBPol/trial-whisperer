@@ -57,11 +57,13 @@ by the indexing step:
    the application can serve queries immediately after seeding.
 
 Configure the API request under the `[data.api]` section of
-`config/appsettings.toml`. The default example downloads a modest cohort of
-recruiting glioblastoma trials:
+``config/appsettings.toml`. Choose the HTTP client with the `backend` key
+(`"httpx"` when omitted, or `"requests"` as shown below). The default example
+downloads a modest cohort of recruiting glioblastoma trials:
 
 ```toml
 [data.api]
+backend = "requests"        # HTTP client backend ("httpx" or "requests")
 page_size = 100            # API page size (max 100)
 max_studies = 200          # Total number of studies to ingest
 
@@ -78,7 +80,8 @@ website. Add or repeat keys to narrow the cohort further—for example `--param
 filter.locationFacility=Boston` on the command line or an additional
 `"filter.locationFacility"` entry in the TOML file.
 
-The client targets `https://www.clinicaltrials.gov/api/v2` by default. If
+The client targets `https://www.clinicaltrials.gov/api/v2` by default and uses
+`httpx` unless you set `data.api.backend` to `"requests"`. If
 ClinicalTrials.gov relocates the v2 API again, set `data.api.base_url` to the
 new host to keep ingestion running:
 

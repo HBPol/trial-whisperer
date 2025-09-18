@@ -25,6 +25,7 @@ proc_dir = ".data/processed"
 # ClinicalTrials.gov API base URL (defaults to https://www.clinicaltrials.gov/api/v2).
 # Uncomment base_url to target an alternate host if the service moves again.
 # base_url = "https://www.clinicaltrials.gov/api/v2"
+backend = "requests" # HTTP client backend ("httpx" or "requests")
 page_size = 100
 max_studies = 200
 # User-Agent defaults to TrialWhisperer/ingest (+https://trialwhisperer.ai/contact);
