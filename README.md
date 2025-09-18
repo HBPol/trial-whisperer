@@ -48,7 +48,7 @@ or provide a remote Qdrant endpoint via `QDRANT_URL`/`QDRANT_API_KEY`.
 by the indexing step:
 
 1. `python -m pipeline.pipeline --from-api ...` downloads study records from
-   the [ClinicalTrials.gov API v2](https://clinicaltrials.gov/api/v2/) using
+   the [ClinicalTrials.gov API v2](https://www.clinicaltrials.gov/api/v2/) using
    the parameters defined in your configuration file.
 2. The pipeline normalizes the JSON payload into the schema expected by
    `pipeline.normalize`/`pipeline.chunk` and writes
@@ -77,6 +77,15 @@ values are enumerations—use the API's canonical codes such as
 website. Add or repeat keys to narrow the cohort further—for example `--param
 filter.locationFacility=Boston` on the command line or an additional
 `"filter.locationFacility"` entry in the TOML file.
+
+The client targets `https://www.clinicaltrials.gov/api/v2` by default. If
+ClinicalTrials.gov relocates the v2 API again, set `data.api.base_url` to the
+new host to keep ingestion running:
+
+```toml
+[data.api]
+base_url = "https://api.example.gov/ctgov/v2"
+```
 
 As of September 2025 the v2 API does not yet expose dedicated
 `filter.studyType` or `filter.phase` parameters; sending them results in an HTTP
