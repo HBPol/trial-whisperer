@@ -65,7 +65,7 @@ def _default_output_path(config: Mapping[str, Any]) -> Path:
 
 def _api_settings(
     config: Mapping[str, Any],
-) -> tuple[dict[str, Any], int | None, int | None, dict[str, Any]]:
+) -> tuple[dict[str, Any], int | None, int | None, dict[str, Any], str]:
     data_cfg = config.get("data", {}) or {}
     api_cfg = data_cfg.get("api", {}) or {}
     params = api_cfg.get("params", {}) or {}
@@ -106,7 +106,21 @@ def _api_settings(
         if cleaned_headers:
             client_settings["headers"] = cleaned_headers
 
-    return dict(params), page_size, max_studies, client_settings
+    backend_value = api_cfg.get("backend")
+    if backend_value is None:
+        backend = "httpx"
+    elif isinstance(backend_value, str) and backend_value.strip():
+        backend = backend_value.strip()
+    else:
+        raise ValueError("ClinicalTrials.gov API backend must be a non-empty string")
+
+    normalized_backend = backend.lower()
+    if normalized_backend not in {"httpx", "requests"}:
+        raise ValueError(
+            "ClinicalTrials.gov API backend must be one of {'httpx', 'requests'}"
+        )
+
+    return dict(params), page_size, max_studies, client_settings, backend
 
 
 def _append_param(params: dict[str, Any], key: str, value: str) -> None:
@@ -162,7 +176,15 @@ def main(argv: Sequence[str] | None = None) -> Path:
     output_path = args.output or _default_output_path(config)
 
     if args.from_api:
-        params, cfg_page_size, cfg_max_studies, client_settings = _api_settings(config)
+        from .ctgov_api import CtGovClient, CtGovRequestsClient
+
+        (
+            params,
+            cfg_page_size,
+            cfg_max_studies,
+            client_settings,
+            backend,
+        ) = _api_settings(config)
 
         if args.query_term:
             params["query.term"] = args.query_term
@@ -182,13 +204,18 @@ def main(argv: Sequence[str] | None = None) -> Path:
             "max_studies": max_studies,
         }
 
-        if client_settings:
-            from .ctgov_api import CtGovClient
+        backend_key = backend.lower()
+        if backend_key == "httpx":
+            client_cls = CtGovClient
+        elif backend_key == "requests":
+            client_cls = CtGovRequestsClient
+        else:  # pragma: no cover - safeguarded by _api_settings validation
+            raise ValueError(
+                f"Unknown ClinicalTrials.gov API backend '{backend}'. Expected 'httpx' or 'requests'."
+            )
 
-            with CtGovClient(**client_settings) as api_client:
-                records = fetch_trial_records(client=api_client, **fetch_kwargs)
-        else:
-            records = fetch_trial_records(**fetch_kwargs)
+        with client_cls(**client_settings) as api_client:
+            records = fetch_trial_records(client=api_client, **fetch_kwargs)
         return process_trials(records=records, output_path=output_path)
 
     if args.xml_dir is None:

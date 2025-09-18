@@ -11,6 +11,7 @@ def test_api_settings_includes_custom_base_url():
         }
     }
 
-    _, _, _, client_settings = _api_settings(config)
+    _, _, _, client_settings, backend = _api_settings(config)
 
     assert client_settings["base_url"] == "https://alt.example/v2"
+    assert backend == "httpx"
