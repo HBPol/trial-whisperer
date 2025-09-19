@@ -1,5 +1,4 @@
 import json
-from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -32,7 +31,7 @@ def offline_trials():
         },
     ]
 
-    data_path = Path(".data/processed/trials.jsonl")
+    data_path = trial_store.get_trials_data_path()
     data_path.parent.mkdir(parents=True, exist_ok=True)
     original_content = (
         data_path.read_text(encoding="utf-8") if data_path.exists() else None
@@ -49,8 +48,7 @@ def offline_trials():
     original_collection = search_client.settings.qdrant_collection
 
     search_client._client = None
-    search_client._FAKE_INDEX = []
-    search_client._FALLBACK_INDEX_INITIALIZED = False
+    search_client.clear_fallback_index()
     search_client.settings.retrieval_backend = None
     search_client.settings.qdrant_url = None
     search_client.settings.qdrant_collection = None

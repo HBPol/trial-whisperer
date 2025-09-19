@@ -1,5 +1,4 @@
 import json
-from pathlib import Path
 
 from fastapi.testclient import TestClient
 
@@ -11,7 +10,7 @@ client = TestClient(app)
 
 def _sample_trial_id() -> str:
     trial_store.clear_trials_cache()
-    path = Path(".data/processed/trials.jsonl")
+    path = trial_store.get_trials_data_path()
     with path.open("r", encoding="utf-8") as f:
         for line in f:
             chunk = json.loads(line)

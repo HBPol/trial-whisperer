@@ -1,7 +1,6 @@
 import json
 import re
 from collections import Counter
-from pathlib import Path
 from typing import Iterable, List, Optional, Tuple
 
 from qdrant_client import QdrantClient
@@ -40,7 +39,7 @@ def _ensure_fake_index_loaded() -> None:
 
     _FALLBACK_INDEX_INITIALIZED = True
 
-    data_path = Path(trial_store.DEFAULT_TRIALS_PATH)
+    data_path = trial_store.get_trials_data_path()
     if not data_path.exists():
         return
 
@@ -69,6 +68,14 @@ def _ensure_fake_index_loaded() -> None:
                 _FAKE_INDEX.append({"nct_id": nct_id, "section": section, "text": text})
     except OSError:
         return
+
+
+def clear_fallback_index() -> None:
+    """Reset the in-memory fallback index used during tests/offline mode."""
+
+    global _FAKE_INDEX, _FALLBACK_INDEX_INITIALIZED
+    _FAKE_INDEX = []
+    _FALLBACK_INDEX_INITIALIZED = False
 
 
 def _tokenize(text: str | None) -> List[str]:

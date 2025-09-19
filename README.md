@@ -51,8 +51,9 @@ by the indexing step:
    the [ClinicalTrials.gov API v2](https://www.clinicaltrials.gov/api/v2/) using
    the parameters defined in your configuration file.
 2. The pipeline normalizes the JSON payload into the schema expected by
-   `pipeline.normalize`/`pipeline.chunk` and writes
-   `.data/processed/trials.jsonl` with the real NCT IDs from the feed.
+   `pipeline.normalize`/`pipeline.chunk` and writes the processed chunks to the
+   path configured via `TRIALS_DATA_PATH` (default:
+   `.data/processed/trials.jsonl`) with the real NCT IDs from the feed.
 3. `python -m scripts.index` embeds the chunks and upserts them into Qdrant so
    the application can serve queries immediately after seeding.
 
@@ -183,7 +184,9 @@ docker run --rm -p 8000:8000 \
 - `LLM_API_KEY` – API key for your LLM provider.
 - `QDRANT_URL` – Qdrant cloud endpoint (including port number e.g. `https://YOUR.QDRANT.URL:6333`).
 - `QDRANT_API_KEY` – Qdrant authentication token.
-
+- `TRIALS_DATA_PATH` – Location of the processed trials JSONL file. Override to
+  switch between seeded data and ad-hoc datasets (defaults to
+  `.data/processed/trials.jsonl`).
 
 ## API
 

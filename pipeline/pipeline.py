@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Sequence
 
@@ -10,6 +11,23 @@ import tomli
 from .chunk import chunk_sections
 from .normalize import normalize
 from .parse_xml import parse_one
+
+TRIALS_DATA_ENV_VAR = "TRIALS_DATA_PATH"
+_DEFAULT_TRIALS_OUTPUT = Path(".data/processed/trials.jsonl")
+
+
+def _configured_output_path(config: Mapping[str, Any] | None = None) -> Path:
+    env_value = os.getenv(TRIALS_DATA_ENV_VAR)
+    if env_value:
+        return Path(env_value)
+
+    if config is not None:
+        data_cfg = config.get("data", {}) or {}
+        proc_dir = data_cfg.get("proc_dir")
+        if isinstance(proc_dir, str) and proc_dir.strip():
+            return Path(proc_dir) / "trials.jsonl"
+
+    return _DEFAULT_TRIALS_OUTPUT
 
 
 def process_trials(
@@ -24,9 +42,9 @@ def process_trials(
         raise ValueError("Either xml_dir or records must be provided")
 
     if output_path is None:
-        output_path = Path(".data/processed/trials.jsonl")
-    if output_path is None:
-        output_path = Path(".data/processed/trials.jsonl")
+        output_path = _configured_output_path()
+    else:
+        output_path = Path(output_path)
 
     if records is None:
         xml_dir = Path(xml_dir)  # type: ignore[arg-type]
@@ -58,9 +76,7 @@ def _load_config(path: Path) -> Mapping[str, Any]:
 
 
 def _default_output_path(config: Mapping[str, Any]) -> Path:
-    data_cfg = config.get("data", {}) or {}
-    proc_dir = data_cfg.get("proc_dir", ".data/processed")
-    return Path(proc_dir) / "trials.jsonl"
+    return _configured_output_path(config)
 
 
 def _api_settings(

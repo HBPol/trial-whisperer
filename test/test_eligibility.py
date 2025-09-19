@@ -1,10 +1,9 @@
 import json
-from pathlib import Path
 
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.retrieval import search_client
+from app.retrieval import search_client, trial_store
 from app.routers import eligibility
 
 client = TestClient(app)
@@ -46,8 +45,9 @@ def test_check_eligibility_out_of_range_age():
 
 
 def test_retrieve_criteria_returns_lists():
-    path = Path(".data/processed/trials.jsonl")
+    path = trial_store.get_trials_data_path()
     with path.open("r", encoding="utf-8") as f:
+        search_client.clear_fallback_index()
         search_client._FAKE_INDEX = [json.loads(line) for line in f]
 
     trial_counts: dict[str, dict[str, int]] = {}

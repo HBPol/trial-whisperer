@@ -3,16 +3,33 @@
 from __future__ import annotations
 
 import json
+import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
 from app.models.schemas import TrialMetadata
 
-DEFAULT_TRIALS_PATH = Path(".data/processed/trials.jsonl")
+TRIALS_DATA_ENV_VAR = "TRIALS_DATA_PATH"
+_DEFAULT_TRIALS_PATH = Path(".data/processed/trials.jsonl")
 
 
-def _normalise_path(data_path: Path | str) -> str:
+def get_trials_data_path() -> Path:
+    """Return the configured trials dataset path.
+
+    The environment variable ``TRIALS_DATA_PATH`` takes precedence; when unset
+    we fall back to the repository default ``.data/processed/trials.jsonl``.
+    """
+
+    configured = os.getenv(TRIALS_DATA_ENV_VAR)
+    if configured:
+        return Path(configured)
+    return _DEFAULT_TRIALS_PATH
+
+
+def _normalise_path(data_path: Path | str | None) -> str:
+    if data_path is None:
+        data_path = get_trials_data_path()
     if isinstance(data_path, Path):
         return str(data_path)
     return data_path
@@ -32,7 +49,7 @@ def normalize_section_entry(section: object, text: object) -> Tuple[str, str] | 
     return section, text
 
 
-def _build_index(data_path: str) -> Dict[str, TrialMetadata]:
+def _build_index(data_path: str | Path) -> Dict[str, TrialMetadata]:
     path = Path(data_path)
     if not path.exists():
         return {}
@@ -72,15 +89,16 @@ def _build_index(data_path: str) -> Dict[str, TrialMetadata]:
 
 @lru_cache(maxsize=1)
 def load_trials_index(
-    data_path: str = str(DEFAULT_TRIALS_PATH),
+    data_path: str | Path | None = None,
 ) -> Dict[str, TrialMetadata]:
     """Load and cache trial metadata keyed by ``nct_id``."""
 
-    return _build_index(data_path)
+    resolved = _normalise_path(data_path)
+    return _build_index(resolved)
 
 
 def get_trial_metadata(
-    nct_id: str, *, data_path: Path | str = DEFAULT_TRIALS_PATH
+    nct_id: str, *, data_path: Path | str | None = None
 ) -> Optional[TrialMetadata]:
     """Return metadata for a specific trial if available."""
 
