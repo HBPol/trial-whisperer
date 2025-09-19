@@ -32,8 +32,7 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp config/appsettings.example.toml config/appsettings.toml
 # Edit config/appsettings.toml with your keys / endpoints
-make seed # small demo dataset + index (starts local Qdrant if needed)
-python scripts/index.py # index processed trials into Qdrant
+make seed # downloads trials from ClinicalTrials.gov and indexes them
 make run
 ```
 
@@ -41,6 +40,117 @@ The seeding step requires an accessible Qdrant instance. If `QDRANT_URL` and
 `QDRANT_API_KEY` are not set, the script will attempt to start a local Qdrant
 container (`docker run -p 6333:6333 qdrant/qdrant`). Ensure Docker is installed
 or provide a remote Qdrant endpoint via `QDRANT_URL`/`QDRANT_API_KEY`.
+
+
+### Ingesting ClinicalTrials.gov trials
+
+`make seed` (or `scripts/seed_smallset.sh`) runs the ingestion pipeline followed
+by the indexing step:
+
+1. `python -m pipeline.pipeline --from-api ...` downloads study records from
+   the [ClinicalTrials.gov API v2](https://www.clinicaltrials.gov/api/v2/) using
+   the parameters defined in your configuration file.
+2. The pipeline normalizes the JSON payload into the schema expected by
+   `pipeline.normalize`/`pipeline.chunk` and writes the processed chunks to the
+   path configured via `TRIALS_DATA_PATH` (default:
+   `.data/processed/trials.jsonl`) with the real NCT IDs from the feed.
+3. `python -m scripts.index` embeds the chunks and upserts them into Qdrant so
+   the application can serve queries immediately after seeding.
+
+Configure the API request under the `[data.api]` section of
+``config/appsettings.toml`. Choose the HTTP client with the `backend` key
+(`"httpx"` when omitted, or `"requests"` as shown below). The default example
+downloads a modest cohort of recruiting glioblastoma trials:
+
+```toml
+[data.api]
+backend = "requests"        # HTTP client backend ("httpx" or "requests")
+page_size = 100            # API page size (max 100)
+max_studies = 200          # Total number of studies to ingest
+
+[data.api.params]
+"query.term" = "glioblastoma"
+"filter.overallStatus" = ["RECRUITING", "ACTIVE_NOT_RECRUITING"]
+```
+
+Keys in `[data.api.params]` correspond directly to the official `studies`
+endpoint parameters (e.g. `query.term`, `filter.overallStatus`). Most filter
+values are enumerations—use the API's canonical codes such as
+`ACTIVE_NOT_RECRUITING` rather than the human-readable labels shown on the
+website. Add or repeat keys to narrow the cohort further—for example `--param
+filter.locationFacility=Boston` on the command line or an additional
+`"filter.locationFacility"` entry in the TOML file.
+
+The client targets `https://www.clinicaltrials.gov/api/v2` by default and uses
+`httpx` unless you set `data.api.backend` to `"requests"`. If
+ClinicalTrials.gov relocates the v2 API again, set `data.api.base_url` to the
+new host to keep ingestion running:
+
+```toml
+[data.api]
+base_url = "https://api.example.gov/ctgov/v2"
+```
+
+Set `data.api.backend` to choose the HTTP stack used for API calls. The new
+`requests` backend mirrors the ubiquitous `requests.Session` behaviour (respecting
+`trust_env`, enterprise proxies, etc.) and is the recommended option for most
+deployments:
+
+```toml
+[data.api]
+backend = "requests"
+```
+
+If you rely on features specific to the original `httpx` client (for example
+HTTP/2 or custom transports), keep or restore the previous behaviour with:
+
+```toml
+[data.api]
+backend = "httpx"
+```
+
+As of September 2025 the v2 API does not yet expose dedicated
+`filter.studyType` or `filter.phase` parameters; sending them results in an HTTP
+400 response. To constrain those attributes, embed an advanced search clause
+inside `query.term`, mirroring the syntax used by ClinicalTrials.gov's
+Advanced Search. For example:
+
+```toml
+"query.term" = "glioblastoma AND AREA[StudyType]StudyType=Interventional AND AREA[Phase]Phase=Phase 2"
+```
+
+Refer to the [API query reference](https://clinicaltrials.gov/data-api/about-api#query) for the
+full list of supported `AREA[...]` tokens.
+
+ClinicalTrials.gov asks API consumers to identify a responsible contact in
+their `User-Agent` or request headers. TrialWhisperer ships with
+`TrialWhisperer/ingest (+https://trialwhisperer.ai/contact)` as the default
+identifier, but you should provide your own organization string (or email
+address) via `data.api.user_agent` or add a dedicated header to stay in
+compliance:
+
+```toml
+[data.api]
+user_agent = "my-app/1.0 (admin@example.com)"
+
+[data.api.headers]
+"X-Contact" = "admin@example.com"
+```
+
+The pipeline will merge these values into every API call while keeping the
+default headers when the override is omitted.
+
+
+You can run the ingestion manually when experimenting:
+
+```bash
+python -m pipeline.pipeline --from-api --config config/appsettings.toml \
+  --max-studies 50 \
+  --query-term 'glioblastoma AND AREA[StudyType]StudyType=Interventional'
+```
+
+Re-run `python -m scripts.index` after changing any ingestion parameters so the
+vector index reflects the freshly downloaded trials.
 
 
 ## Run with Docker
@@ -74,7 +184,9 @@ docker run --rm -p 8000:8000 \
 - `LLM_API_KEY` – API key for your LLM provider.
 - `QDRANT_URL` – Qdrant cloud endpoint (including port number e.g. `https://YOUR.QDRANT.URL:6333`).
 - `QDRANT_API_KEY` – Qdrant authentication token.
-
+- `TRIALS_DATA_PATH` – Location of the processed trials JSONL file. Override to
+  switch between seeded data and ad-hoc datasets (defaults to
+  `.data/processed/trials.jsonl`).
 
 ## API
 

@@ -4,25 +4,17 @@ from pathlib import Path
 from pipeline.pipeline import process_trials
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "xml"
-OUTPUT_JSONL = Path(".data/processed/trials.jsonl")
 
 
-def test_pipeline_creates_chunks_per_trial():
-    # Ensure clean state
-    if OUTPUT_JSONL.exists():
-        OUTPUT_JSONL.unlink()
-    if OUTPUT_JSONL.parent.exists():
-        # Remove directory if empty? but not necessary
-        pass
+def test_pipeline_creates_chunks_per_trial(monkeypatch, tmp_path):
+    output_jsonl = tmp_path / "custom" / "trials.jsonl"
+    monkeypatch.setenv("TRIALS_DATA_PATH", str(output_jsonl))
 
-    # Run pipeline on fixtures
     process_trials(FIXTURE_DIR)
 
-    # JSONL file is written
-    assert OUTPUT_JSONL.exists()
+    assert output_jsonl.exists()
 
-    # Load produced chunks
-    with OUTPUT_JSONL.open("r", encoding="utf-8") as f:
+    with output_jsonl.open("r", encoding="utf-8") as f:
         chunks = [json.loads(line) for line in f]
 
     # Every chunk has essential metadata

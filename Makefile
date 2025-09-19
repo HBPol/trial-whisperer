@@ -11,6 +11,7 @@ seed:
 format:
 >bash scripts/format.sh
 
+test: export TRIALS_DATA_PATH ?= .data/test_processed/trials.jsonl
 test:
 >pytest -q
 

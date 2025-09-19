@@ -106,16 +106,21 @@ PY
 }
 
 main() {
-  # ---- Data preparation pipeline ----
-  python pipeline/download.py
-  python pipeline/parse_xml.py    # TODO: implement real parsing
-  python pipeline/normalize.py    # TODO
-  python pipeline/chunk.py        # TODO
+  local config_file="config/appsettings.toml"
+  local -a pipeline_cmd=(python -m pipeline.pipeline --from-api --config "${config_file}")
+
+  if [[ $# -gt 0 ]]; then
+    pipeline_cmd+=("$@")
+  fi
+
+  echo "Running ingestion pipeline: ${pipeline_cmd[*]}"
+  "${pipeline_cmd[@]}"
 
   # ---- Qdrant availability ----
   ensure_qdrant
 
   # ---- Index documents ----
+  echo "Indexing processed trials into Qdrant"
   python -m scripts.index
 }
 

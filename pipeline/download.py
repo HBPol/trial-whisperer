@@ -1,28 +1,135 @@
-"""Populate the local ``.data/raw`` folder with example ClinicalTrials.gov XML."""
+"""Download and prepare trial data from the ClinicalTrials.gov Data API."""
 
-import shutil
-from pathlib import Path
+from __future__ import annotations
 
+from contextlib import nullcontext
+from typing import Any, Dict, Iterable, Mapping
 
-def main() -> None:
-    """Copy test fixture XMLs into ``.data/raw``.
+from .ctgov_api import CtGovApiClientProtocol, CtGovClient
 
-    The project currently relies on a small set of curated fixtures located
-    under ``test/fixtures/xml``.  This function copies those files into the
-    ``.data/raw`` directory so downstream steps in the pipeline have a
-    predictable input location.
-    """
-
-    raw = Path(".data/raw")
-    raw.mkdir(parents=True, exist_ok=True)
-
-    fixture_dir = Path("test/fixtures/xml")
-    if not fixture_dir.exists():
-        raise FileNotFoundError(f"Fixture directory {fixture_dir} not found")
-
-    for xml_file in fixture_dir.glob("*.xml"):
-        shutil.copy2(xml_file, raw / xml_file.name)
+__all__ = ["fetch_trial_records", "study_to_record"]
 
 
-if __name__ == "__main__":
-    main()
+def _strip_bullet(line: str) -> str:
+    return line.lstrip("-*•\u2022").strip()
+
+
+def _split_eligibility(text: str | None) -> Dict[str, list[str]]:
+    inclusion: list[str] = []
+    exclusion: list[str] = []
+    if not text:
+        return {"inclusion": inclusion, "exclusion": exclusion}
+
+    current: list[str] | None = None
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+
+        lowered = line.lower()
+        if lowered.startswith("inclusion criteria"):
+            current = inclusion
+            continue
+        if lowered.startswith("exclusion criteria"):
+            current = exclusion
+            continue
+
+        if current is not None:
+            cleaned = _strip_bullet(line)
+            if cleaned:
+                current.append(cleaned)
+
+    return {"inclusion": inclusion, "exclusion": exclusion}
+
+
+def _coerce_list(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [str(v) for v in value if v]
+    return [str(value)]
+
+
+def study_to_record(study: Mapping[str, Any]) -> Dict[str, Any]:
+    """Normalize a ClinicalTrials.gov study into the parser schema."""
+
+    protocol = study.get("protocolSection", {}) or {}
+    identification = protocol.get("identificationModule", {}) or {}
+    conditions_module = protocol.get("conditionsModule", {}) or {}
+    interventions_module = protocol.get("armsInterventionsModule", {}) or {}
+    eligibility_module = protocol.get("eligibilityModule", {}) or {}
+    outcomes_module = protocol.get("outcomesModule", {}) or {}
+
+    nct_id = identification.get("nctId") or ""
+    title = (
+        identification.get("officialTitle") or identification.get("briefTitle") or ""
+    )
+
+    condition = _coerce_list(
+        conditions_module.get("conditions")
+        or conditions_module.get("conditionList", {}).get("conditions")
+    )
+
+    interventions: list[str] = []
+    raw_interventions = interventions_module.get("interventions", [])
+    if isinstance(raw_interventions, Iterable):
+        for entry in raw_interventions:
+            if not isinstance(entry, Mapping):
+                continue
+            i_type = entry.get("interventionType") or entry.get("type")
+            name = entry.get("name") or entry.get("interventionName")
+            if i_type and name:
+                interventions.append(f"{i_type}: {name}")
+            elif name:
+                interventions.append(str(name))
+            elif i_type:
+                interventions.append(str(i_type))
+
+    eligibility = _split_eligibility(eligibility_module.get("eligibilityCriteria"))
+
+    outcomes: list[Dict[str, str]] = []
+    raw_outcomes = outcomes_module.get("primaryOutcomes", [])
+    if isinstance(raw_outcomes, Iterable):
+        for entry in raw_outcomes:
+            if not isinstance(entry, Mapping):
+                continue
+            outcomes.append(
+                {
+                    "measure": str(entry.get("measure") or ""),
+                    "time_frame": str(
+                        entry.get("timeFrame")
+                        or entry.get("timeframe")
+                        or entry.get("timeFrameDescription")
+                        or ""
+                    ),
+                }
+            )
+
+    return {
+        "nct_id": str(nct_id),
+        "title": str(title) if title is not None else "",
+        "condition": condition,
+        "interventions": interventions,
+        "eligibility": eligibility,
+        "outcomes": outcomes,
+    }
+
+
+def fetch_trial_records(
+    *,
+    params: Mapping[str, Any] | None = None,
+    page_size: int | None = 100,
+    max_studies: int | None = None,
+    client: CtGovApiClientProtocol | None = None,
+) -> list[Dict[str, Any]]:
+    """Fetch and normalize study records from the Data API."""
+
+    context = nullcontext(client) if client is not None else CtGovClient()
+    with context as api_client:  # type: ignore[assignment]
+        studies = api_client.fetch_studies(
+            params=params or {},
+            page_size=page_size,
+            max_studies=max_studies,
+        )
+
+    return [study_to_record(study) for study in studies]
