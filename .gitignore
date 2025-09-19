@@ -26,5 +26,7 @@ config/appsettings.toml
 .data/*
 !.data/processed/
 !.data/processed/trials.jsonl
+!.data/test_processed/
+!.data/test_processed/trials.jsonl
 requirements.in
 requirements-dev.in
