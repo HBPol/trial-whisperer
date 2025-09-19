@@ -96,6 +96,7 @@ def test_offline_trial_endpoint_uses_local_data(offline_trials):
     payload = response.json()
     assert payload["id"] == nct_id
     assert payload["sections"]["summary"] == offline_trials["summary"]
+    assert payload["trial_url"] == f"https://clinicaltrials.gov/study/{nct_id}"
 
 
 def test_offline_check_eligibility(offline_trials):

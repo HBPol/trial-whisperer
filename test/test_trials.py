@@ -28,6 +28,7 @@ def test_get_trial_returns_expected_structure():
     assert data["id"] == nct_id
     assert "title" in data
     assert "sections" in data
+    assert data["trial_url"] == f"https://clinicaltrials.gov/study/{nct_id}"
 
 
 def test_get_trial_unknown_returns_400():

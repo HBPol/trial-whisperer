@@ -38,4 +38,5 @@ class EligibilityResponse(BaseModel):
 class TrialMetadata(BaseModel):
     id: str
     title: Optional[str] = None
+    trial_url: Optional[str] = None
     sections: Dict[str, str]
