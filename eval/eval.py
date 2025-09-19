@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Sequence
@@ -15,8 +16,10 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from app.main import app
+from app.retrieval import search_client, trial_store
 
 DEFAULT_TESTSET_PATH = Path("eval/testset.sample.jsonl")
+DEFAULT_TRIALS_DATA_PATH = Path(".data/test_processed/trials.jsonl")
 
 
 def load_examples(path: Path) -> List[Dict[str, Any]]:
@@ -230,12 +233,37 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         type=str,
         help="Optional file path to write the JSON report to.",
     )
+    parser.add_argument(
+        "--trials-data",
+        dest="trials_data",
+        type=str,
+        default=None,
+        help=(
+            "Path to the processed trials dataset used by the fallback search. "
+            "Defaults to '.data/test_processed/trials.jsonl' when running the "
+            "sample evaluation."
+        ),
+    )
     return parser.parse_args(argv)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     dataset_path = Path(args.dataset)
+
+    trials_data_path: Path | None
+    if args.trials_data:
+        trials_data_path = Path(args.trials_data)
+    elif dataset_path == DEFAULT_TESTSET_PATH:
+        trials_data_path = DEFAULT_TRIALS_DATA_PATH
+    else:
+        trials_data_path = None
+
+    if trials_data_path:
+        os.environ[trial_store.TRIALS_DATA_ENV_VAR] = str(trials_data_path)
+
+    trial_store.clear_trials_cache()
+    search_client.clear_fallback_index()
 
     if not dataset_path.exists():
         raise SystemExit(f"Dataset not found: {dataset_path}")

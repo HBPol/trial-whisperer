@@ -44,28 +44,36 @@ or provide a remote Qdrant endpoint via `QDRANT_URL`/`QDRANT_API_KEY`.
 ## Evaluation
 
 Use the evaluation harness to exercise the `/ask` endpoint against the bundled
-sample dataset:
+sample dataset and fixture trials index:
 
 ```bash
 python eval/eval.py
 ```
 
 When invoked without arguments, the script loads `eval/testset.sample.jsonl`
-and prints a short summary that includes the answer exact match rate, citation
-coverage for examples that expect specific sections, and the number of errors
-encountered during the run. The same metrics, along with per-example details,
-are written to the console as a JSON report or to the path provided via
-`--json-report`:
+and points the fallback retrieval index at
+`.data/test_processed/trials.jsonl`. The evaluation run prints a short summary
+that includes the answer exact match rate, citation coverage for examples that
+expect specific sections, and the number of errors encountered during the run.
+The same metrics, along with per-example details, are written to the console as
+a JSON report or to the path provided via `--json-report`:
 
 ```bash
 python eval/eval.py --json-report reports/eval.json
 ```
 
-To evaluate a different dataset (or change the report location), pass the
-desired paths explicitly:
+During local development or tests the API falls back to an in-memory index when
+no live Qdrant backend is configured. `eval.py` now exposes a `--trials-data`
+flag to control the source JSONL file for that offline index, mirroring the
+`TRIALS_DATA_PATH` environment variable understood by the application. Specify
+it alongside a custom dataset to run the evaluation against a different set of
+processed trials:
+
 
 ```bash
-python eval/eval.py eval/custom_trials.jsonl --json-report reports/custom.json
+python eval/eval.py eval/custom_trials.jsonl \
+  --trials-data .data/processed/trials.jsonl \
+  --json-report reports/custom.json
 ```
 
 ### Ingesting ClinicalTrials.gov trials
