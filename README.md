@@ -41,6 +41,32 @@ The seeding step requires an accessible Qdrant instance. If `QDRANT_URL` and
 container (`docker run -p 6333:6333 qdrant/qdrant`). Ensure Docker is installed
 or provide a remote Qdrant endpoint via `QDRANT_URL`/`QDRANT_API_KEY`.
 
+## Evaluation
+
+Use the evaluation harness to exercise the `/ask` endpoint against the bundled
+sample dataset:
+
+```bash
+python eval/eval.py
+```
+
+When invoked without arguments, the script loads `eval/testset.sample.jsonl`
+and prints a short summary that includes the answer exact match rate, citation
+coverage for examples that expect specific sections, and the number of errors
+encountered during the run. The same metrics, along with per-example details,
+are written to the console as a JSON report or to the path provided via
+`--json-report`:
+
+```bash
+python eval/eval.py --json-report reports/eval.json
+```
+
+To evaluate a different dataset (or change the report location), pass the
+desired paths explicitly:
+
+```bash
+python eval/eval.py eval/custom_trials.jsonl --json-report reports/custom.json
+```
 
 ### Ingesting ClinicalTrials.gov trials
 
