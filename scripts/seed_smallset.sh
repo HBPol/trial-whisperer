@@ -107,7 +107,43 @@ PY
 
 main() {
   local config_file="config/appsettings.toml"
-  local -a pipeline_cmd=(python -m pipeline.pipeline --from-api --config "${config_file}")
+  local raw_dir="${RAW_DATA_DIR:-}"
+
+  if [[ -z "${raw_dir}" && -f "${config_file}" ]]; then
+    raw_dir="$(python - "${config_file}" <<'PY'
+import sys
+
+try:
+    import tomllib  # Python 3.11+
+except Exception:
+    tomllib = None
+
+cfg_path = sys.argv[1]
+if tomllib is None:
+    print("", end="")
+    raise SystemExit(0)
+
+try:
+    with open(cfg_path, "rb") as handle:
+        cfg = tomllib.load(handle)
+except FileNotFoundError:
+    cfg = {}
+
+raw_dir = (cfg or {}).get("data", {}).get("raw_dir", "") or ""
+print(raw_dir)
+PY
+    )"
+  fi
+
+  if [[ -z "${raw_dir}" ]]; then
+    raw_dir=".data/raw"
+  fi
+
+  mkdir -p "${raw_dir}"
+
+  local -a pipeline_cmd=(
+    python -m pipeline.pipeline --from-api --config "${config_file}" --raw-dir "${raw_dir}"
+  )
 
   if [[ $# -gt 0 ]]; then
     pipeline_cmd+=("$@")

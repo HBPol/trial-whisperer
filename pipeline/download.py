@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from contextlib import nullcontext
+from pathlib import Path
 from typing import Any, Dict, Iterable, Mapping
 
 from .ctgov_api import CtGovApiClientProtocol, CtGovClient
@@ -121,6 +123,7 @@ def fetch_trial_records(
     page_size: int | None = 100,
     max_studies: int | None = None,
     client: CtGovApiClientProtocol | None = None,
+    raw_dir: Path | None = None,
 ) -> list[Dict[str, Any]]:
     """Fetch and normalize study records from the Data API."""
 
@@ -131,5 +134,32 @@ def fetch_trial_records(
             page_size=page_size,
             max_studies=max_studies,
         )
+    if raw_dir is not None:
+        _write_raw_studies(studies, raw_dir)
 
     return [study_to_record(study) for study in studies]
+
+
+def _study_identifier(study: Mapping[str, Any], index: int) -> str:
+    protocol = study.get("protocolSection", {}) or {}
+    identification = protocol.get("identificationModule", {}) or {}
+    candidate = identification.get("nctId")
+    if isinstance(candidate, str) and candidate.strip():
+        return candidate.strip()
+    return f"study_{index:05d}"
+
+
+def _write_raw_studies(studies: Iterable[Mapping[str, Any]], raw_dir: Path) -> None:
+    raw_dir.mkdir(parents=True, exist_ok=True)
+
+    for index, study in enumerate(studies, start=1):
+        identifier = _study_identifier(study, index)
+        base_name = Path(identifier).name
+        target = raw_dir / f"{base_name}.json"
+        suffix = 1
+        while target.exists():
+            target = raw_dir / f"{base_name}_{suffix:02d}.json"
+            suffix += 1
+        with target.open("w", encoding="utf-8") as handle:
+            json.dump(study, handle)
+            handle.write("\n")
