@@ -90,6 +90,24 @@ new host to keep ingestion running:
 base_url = "https://api.example.gov/ctgov/v2"
 ```
 
+Set `data.api.backend` to choose the HTTP stack used for API calls. The new
+`requests` backend mirrors the ubiquitous `requests.Session` behaviour (respecting
+`trust_env`, enterprise proxies, etc.) and is the recommended option for most
+deployments:
+
+```toml
+[data.api]
+backend = "requests"
+```
+
+If you rely on features specific to the original `httpx` client (for example
+HTTP/2 or custom transports), keep or restore the previous behaviour with:
+
+```toml
+[data.api]
+backend = "httpx"
+```
+
 As of September 2025 the v2 API does not yet expose dedicated
 `filter.studyType` or `filter.phase` parameters; sending them results in an HTTP
 400 response. To constrain those attributes, embed an advanced search clause
