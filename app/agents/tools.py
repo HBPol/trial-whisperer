@@ -1,4 +1,5 @@
 import re
+from collections.abc import Iterable
 from typing import Any, Dict, List, Tuple
 
 from app.deps import get_settings
@@ -59,17 +60,19 @@ def call_llm_with_citations(query: str, chunks: List[dict]) -> Tuple[str, List[d
 
     if settings.llm_provider == "gemini" and settings.llm_api_key:
         try:
-            import google.generativeai as genai
+            from google import genai
 
-            genai.configure(api_key=settings.llm_api_key)
-            model = genai.GenerativeModel(settings.llm_model or "gemini-1.5-flash")
+            client = genai.Client(api_key=settings.llm_api_key)
             prompt = (
                 "You answer questions about clinical trials using the provided"
                 " context. Cite passages using (1), (2) etc.\n\n"
                 f"Context:\n{context}\n\nQuestion: {query}"
             )
-            response = model.generate_content(prompt)
-            answer = (response.text or "").strip()
+            response = client.responses.generate(
+                model=settings.llm_model or "gemini-1.5-flash",
+                input=[{"role": "user", "parts": [{"text": prompt}]}],
+            )
+            answer = _extract_gemini_answer(response)
         except Exception:
             answer = (
                 f"[LLM error] Based on {len(chunks)} retrieved passages, see citations."
@@ -79,6 +82,48 @@ def call_llm_with_citations(query: str, chunks: List[dict]) -> Tuple[str, List[d
         # Fallback when no LLM provider is configured
     answer = f"[DEMO] Based on {len(chunks)} retrieved passages, see citations."
     return answer, citations
+
+
+def _extract_gemini_answer(response: Any) -> str:
+    """Return the primary answer text from a Gemini SDK response object."""
+
+    def _iter_parts(parts: Any) -> Iterable[Any]:
+        if parts is None:
+            return []
+        if isinstance(parts, dict):
+            return parts.get("parts", [])
+        if hasattr(parts, "parts"):
+            return parts.parts
+        if isinstance(parts, Iterable) and not isinstance(parts, (str, bytes)):
+            return parts
+        return []
+
+    candidates = getattr(response, "candidates", None)
+    if candidates is None and isinstance(response, dict):
+        candidates = response.get("candidates")
+
+    answer_chunks: List[str] = []
+    for candidate in candidates or []:
+        content = getattr(candidate, "content", None)
+        if content is None and isinstance(candidate, dict):
+            content = candidate.get("content")
+        parts = _iter_parts(content)
+        if not parts and isinstance(candidate, dict):
+            parts = candidate.get("parts", [])
+        for part in parts or []:
+            text = getattr(part, "text", None)
+            if text is None and isinstance(part, dict):
+                text = part.get("text")
+            if text:
+                answer_chunks.append(str(text).strip())
+
+    if answer_chunks:
+        return "\n".join(chunk for chunk in answer_chunks if chunk).strip()
+
+    fallback_text = getattr(response, "text", None)
+    if fallback_text is None and isinstance(response, dict):
+        fallback_text = response.get("text")
+    return (fallback_text or "").strip()
 
 
 def check_eligibility(criteria: dict, patient) -> dict:

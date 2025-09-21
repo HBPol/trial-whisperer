@@ -1,4 +1,17 @@
-from app.agents.tools import check_eligibility
+import sys
+import types
+
+from app.agents.tools import call_llm_with_citations, check_eligibility
+
+
+def _install_fake_genai(monkeypatch, client_cls):
+    fake_google = types.ModuleType("google")
+    fake_google.__path__ = []  # mark as package
+    fake_genai = types.ModuleType("google.genai")
+    fake_genai.Client = client_cls
+    fake_google.genai = fake_genai
+    monkeypatch.setitem(sys.modules, "google", fake_google)
+    monkeypatch.setitem(sys.modules, "google.genai", fake_genai)
 
 
 def test_check_eligibility_age_within_range():
@@ -47,3 +60,63 @@ def test_check_eligibility_exclusion_age_range_blocks_patient():
 
     assert result["eligible"] is False
     assert any("exclusion criterion" in reason for reason in result["reasons"])
+
+
+def test_call_llm_with_citations_gemini_success(monkeypatch):
+    from app.agents import tools
+
+    class FakeResponses:
+        def __init__(self):
+            self.calls = []
+
+        def generate(self, **kwargs):
+            self.calls.append(kwargs)
+            part = types.SimpleNamespace(text="Answer about the trial")
+            content = types.SimpleNamespace(parts=[part])
+            candidate = types.SimpleNamespace(content=content)
+            return types.SimpleNamespace(candidates=[candidate])
+
+    class FakeClient:
+        def __init__(self, api_key):
+            assert api_key == "test-key"
+            self.responses = FakeResponses()
+
+    _install_fake_genai(monkeypatch, FakeClient)
+    monkeypatch.setattr(tools.settings, "llm_provider", "gemini", raising=False)
+    monkeypatch.setattr(tools.settings, "llm_api_key", "test-key", raising=False)
+    monkeypatch.setattr(tools.settings, "llm_model", "gemini-1.5-flash", raising=False)
+
+    chunks = [
+        {"nct_id": "NCT0001", "section": "Summary", "text": "Study summary."},
+        {"nct_id": "NCT0002", "section": "Details", "text": "More info."},
+    ]
+
+    answer, citations = call_llm_with_citations("What is studied?", chunks)
+
+    assert answer == "Answer about the trial"
+    assert citations == chunks[:3]
+
+
+def test_call_llm_with_citations_gemini_error(monkeypatch):
+    from app.agents import tools
+
+    class ErrorClient:
+        def __init__(self, api_key):
+            raise RuntimeError("boom")
+
+    _install_fake_genai(monkeypatch, ErrorClient)
+    monkeypatch.setattr(tools.settings, "llm_provider", "gemini", raising=False)
+    monkeypatch.setattr(tools.settings, "llm_api_key", "test-key", raising=False)
+    monkeypatch.setattr(tools.settings, "llm_model", None, raising=False)
+
+    chunks = [
+        {"nct_id": "NCT0001", "section": "Summary", "text": "Study summary."},
+        {"nct_id": "NCT0002", "section": "Details", "text": "More info."},
+        {"nct_id": "NCT0003", "section": "Extra", "text": "Even more."},
+        {"nct_id": "NCT0004", "section": "Other", "text": "Other info."},
+    ]
+
+    answer, citations = call_llm_with_citations("What is studied?", chunks)
+
+    assert answer.startswith("[LLM error]")
+    assert citations == chunks[:3]

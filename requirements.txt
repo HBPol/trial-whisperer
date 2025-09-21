@@ -28,6 +28,10 @@ fsspec==2025.9.0
     # via
     #   huggingface-hub
     #   torch
+google-auth==2.40.3
+google-genai==1.38.0
+    # via
+    #   manually added
 grpcio==1.74.0
     # via qdrant-client
 h11==0.16.0

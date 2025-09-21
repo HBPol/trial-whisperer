@@ -5,7 +5,7 @@ port = 8000
 
 [llm]
 provider = "gemini" # or "openai"
-model = "gemini-1.5-flash"
+model = "gemini-2.5-flash"
 api_key = "YOUR_GEMINI_API_KEY" # or set via LLM_API_KEY env var
 
 
