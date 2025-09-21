@@ -245,6 +245,25 @@ docker run --rm -p 8000:8000 \
 
 - `POST /check-eligibility` – Evaluate a patient profile against a trial's eligibility criteria.
 
+- Patient payload schema:
+
+  ```json
+  {
+    "nct_id": "NCT01234567",
+    "patient": {
+      "age": 55,
+      "sex": "female",
+      "labs": {
+        "ECOG": 1
+      }
+    }
+  }
+  ```
+
+  - `age` (integer, required): Patient age in years.
+  - `sex` (string, required): Patient sex as documented in the trial (e.g., `"female"`, `"male"`).
+  - `labs` (object, optional): Free-form key/value map of lab measurements or scores. Presently captured for future use and **not** consumed by the eligibility rules.
+
   ```bash
   curl -X POST http://localhost:8000/check-eligibility \
     -H "Content-Type: application/json" \
@@ -257,6 +276,8 @@ docker run --rm -p 8000:8000 \
       }
     }'
   ```
+
+_Current limitations_: eligibility scoring currently evaluates only `age` and `sex`. Lab values are ingested but ignored until lab parsing is implemented, so they will not influence eligibility outcomes yet.
 
 Interactive API exploration is available via Swagger UI at
 `http://localhost:8000/docs` and via ReDoc at `http://localhost:8000/redoc`.
