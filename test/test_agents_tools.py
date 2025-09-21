@@ -30,6 +30,31 @@ def test_check_eligibility_age_outside_range():
     assert any("outside required range" in reason for reason in result["reasons"])
 
 
+def test_check_eligibility_inclusion_minimum_age_phrase_rejects_underage():
+    criteria = {"inclusion": ["Be ≥ 18 years of age"], "exclusion": []}
+    result = check_eligibility(criteria, {"age": 17})
+
+    assert result["eligible"] is False
+    assert any(
+        "Be ≥ 18 years of age" in reason and "Age 17" in reason
+        for reason in result["reasons"]
+    )
+
+
+def test_check_eligibility_inclusion_between_phrase_rejects_overage():
+    criteria = {
+        "inclusion": ["Subject is between 18 and 89 years of age"],
+        "exclusion": [],
+    }
+    result = check_eligibility(criteria, {"age": 92})
+
+    assert result["eligible"] is False
+    assert any(
+        "Subject is between 18 and 89 years of age" in reason and "Age 92" in reason
+        for reason in result["reasons"]
+    )
+
+
 def test_check_eligibility_missing_age():
     criteria = {"inclusion": ["Age 18 to 65"], "exclusion": []}
     result = check_eligibility(criteria, {})

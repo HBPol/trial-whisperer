@@ -160,8 +160,8 @@ def check_eligibility(criteria: dict, patient) -> dict:
     reasons: List[str] = []
 
     for rule in rules["age"]:
-        lower = rule["min"]
-        upper = rule["max"]
+        lower = rule.get("min")
+        upper = rule.get("max")
         text = rule["text"]
         source = rule["source"]
 
@@ -170,19 +170,38 @@ def check_eligibility(criteria: dict, patient) -> dict:
             reasons.append(f"Missing age information for {source} criterion ({text})")
             continue
 
-        if lower > upper:
+        if lower is not None and upper is not None and lower > upper:
             lower, upper = upper, lower
 
         if source == "inclusion":
-            if not (lower <= age <= upper):
-                eligible = False
-                reasons.append(
-                    f"Age {age} outside required range for inclusion criterion ({text})"
-                )
+            if lower is not None and upper is not None:
+                if not (lower <= age <= upper):
+                    eligible = False
+                    reasons.append(
+                        f"Age {age} outside required range for inclusion criterion ({text})"
+                    )
+            else:
+                if lower is not None and age < lower:
+                    eligible = False
+                    reasons.append(
+                        f"Age {age} below minimum for inclusion criterion ({text})"
+                    )
+                if upper is not None and age > upper:
+                    eligible = False
+                    reasons.append(
+                        f"Age {age} above maximum for inclusion criterion ({text})"
+                    )
         else:  # exclusion
-            if lower <= age <= upper:
+            match = False
+            if lower is not None and upper is not None:
+                match = lower <= age <= upper
+            elif lower is not None:
+                match = age >= lower
+            elif upper is not None:
+                match = age <= upper
+            if match:
                 eligible = False
-                reasons.append(f"Age {age} falls within exclusion criterion ({text})")
+                reasons.append(f"Age {age} triggers exclusion criterion ({text})")
 
     for rule in rules["sex"]:
         allowed = rule["allowed"]
@@ -214,11 +233,42 @@ def check_eligibility(criteria: dict, patient) -> dict:
     return {"eligible": eligible, "reasons": reasons}
 
 
-_AGE_RANGE_PATTERN = re.compile(
-    r"\bage[s]?\s*(?:is|between|from|:)?\s*(?P<min>\d{1,3})\s*(?:years?|yrs?)?\s*(?:to|-|–|—|through|and\s+up\s+to|and\s+under|and\s+over\s+to|up\s+to|upto)\s*(?P<max>\d{1,3})\s*(?:years?|yrs?)?",
-    re.IGNORECASE,
-)
+_AGE_RANGE_PATTERNS = [
+    re.compile(
+        r"between\s+(?P<min>\d{1,3})\s*(?:years?|yrs?)?\s*(?:and|to|through|up\s*to|upto|-)\s*(?P<max>\d{1,3})\s*(?:years?|yrs?)?",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"(?:age[s]?|aged|subjects?|participants?)\s*(?:is|are|must\s+be|should\s+be|:|=)?\s*(?P<min>\d{1,3})\s*(?:years?|yrs?)?\s*(?:to|through|and|up\s*to|upto|-)\s*(?P<max>\d{1,3})\s*(?:years?|yrs?)?",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"(?P<min>\d{1,3})\s*(?:to|through|-)\s*(?P<max>\d{1,3})\s*(?:years?|yrs?)?\s*(?:of\s+age|years?\s+of\s+age|old)",
+        re.IGNORECASE,
+    ),
+]
 
+_AGE_MIN_PATTERNS = [
+    re.compile(
+        r"(?:>=|>\s*=|>\s*or\s*equal\s*to|greater\s+than\s+or\s+equal\s+to|at\s+least|no\s+less\s+than|minimum(?:\s+age)?(?:\s+of)?|not\s+younger\s+than)\s*(?P<value>\d{1,3})",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"(?P<value>\d{1,3})\s*(?:\+|\s*or\s+older|\s*and\s+older)\s*(?:years?|yrs?)?(?:\s*of\s+age)?",
+        re.IGNORECASE,
+    ),
+]
+
+_AGE_MAX_PATTERNS = [
+    re.compile(
+        r"(?:<=|<\s*=|<\s*or\s*equal\s*to|less\s+than\s+or\s+equal\s+to|at\s+most|no\s+more\s+than|no\s+older\s+than|not\s+older\s+than|max(?:imum)?(?:\s+age)?(?:\s+of)?)\s*(?P<value>\d{1,3})",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"(?P<value>\d{1,3})\s*(?:\s*or\s+younger|\s*and\s+younger)\s*(?:years?|yrs?)?(?:\s*of\s+age)?",
+        re.IGNORECASE,
+    ),
+]
 _SEX_SYNONYMS: Dict[str, str] = {
     "male": "male",
     "males": "male",
@@ -268,6 +318,75 @@ def _normalize_sex(value: Any) -> str | None:
     return _SEX_SYNONYMS.get(text)
 
 
+def _normalize_age_phrase(text: str) -> str:
+    normalized = text.replace("\u00a0", " ")
+    replacements = {
+        "≥": ">=",
+        "⩾": ">=",
+        "≤": "<=",
+        "⩽": "<=",
+        "–": "-",
+        "—": "-",
+        "−": "-",
+    }
+    for source, target in replacements.items():
+        normalized = normalized.replace(source, target)
+    normalized = normalized.lower()
+    normalized = normalized.replace("upto", "up to")
+    normalized = re.sub(r"\s+", " ", normalized)
+    return normalized.strip()
+
+
+def _mentions_age(text: str) -> bool:
+    return bool(re.search(r"\b(age|aged|ages|year|years|yrs|y/o|yo|old)\b", text))
+
+
+def _safe_int(value: str | None) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _parse_age_rule(text: str) -> Dict[str, int | None] | None:
+    normalized = _normalize_age_phrase(text)
+    if not normalized or not _mentions_age(normalized):
+        return None
+
+    for pattern in _AGE_RANGE_PATTERNS:
+        match = pattern.search(normalized)
+        if match:
+            min_value = _safe_int(match.group("min"))
+            max_value = _safe_int(match.group("max"))
+            if min_value is None and max_value is None:
+                continue
+            return {"min": min_value, "max": max_value}
+
+    min_value: int | None = None
+    max_value: int | None = None
+
+    for pattern in _AGE_MIN_PATTERNS:
+        match = pattern.search(normalized)
+        if match:
+            min_value = _safe_int(match.group("value"))
+            if min_value is not None:
+                break
+
+    for pattern in _AGE_MAX_PATTERNS:
+        match = pattern.search(normalized)
+        if match:
+            max_value = _safe_int(match.group("value"))
+            if max_value is not None:
+                break
+
+    if min_value is None and max_value is None:
+        return None
+
+    return {"min": min_value, "max": max_value}
+
+
 def _extract_rules(criteria: Dict[str, Any]) -> Dict[str, List[dict]]:
     rules = {"age": [], "sex": []}
     if not isinstance(criteria, dict):
@@ -287,17 +406,16 @@ def _extract_rules(criteria: Dict[str, Any]) -> Dict[str, List[dict]]:
             if not text:
                 continue
 
-            match = _AGE_RANGE_PATTERN.search(text)
-            if match:
-                try:
-                    lower = int(match.group("min"))
-                    upper = int(match.group("max"))
-                except (TypeError, ValueError):
-                    lower = upper = None
-                if lower is not None and upper is not None:
-                    rules["age"].append(
-                        {"min": lower, "max": upper, "text": text, "source": section}
-                    )
+            age_rule = _parse_age_rule(text)
+            if age_rule:
+                rules["age"].append(
+                    {
+                        "min": age_rule.get("min"),
+                        "max": age_rule.get("max"),
+                        "text": text,
+                        "source": section,
+                    }
+                )
 
             sex_rule = _parse_sex_rule(text)
             if sex_rule:

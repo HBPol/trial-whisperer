@@ -44,6 +44,48 @@ def test_check_eligibility_out_of_range_age():
     ]
 
 
+def test_check_eligibility_minimum_age_phrase(monkeypatch):
+    monkeypatch.setattr(
+        eligibility,
+        "retrieve_criteria_for_trial",
+        lambda nct_id: {"inclusion": ["Be ≥ 18 years of age"], "exclusion": []},
+    )
+
+    response = client.post(
+        "/check-eligibility/",
+        json={"nct_id": "NCTNEW", "patient": {"age": 17}},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["eligible"] is False
+    assert any("Be ≥ 18 years of age" in reason for reason in payload["reasons"])
+
+
+def test_check_eligibility_between_phrase(monkeypatch):
+    monkeypatch.setattr(
+        eligibility,
+        "retrieve_criteria_for_trial",
+        lambda nct_id: {
+            "inclusion": ["Subject is between 18 and 89 years of age"],
+            "exclusion": [],
+        },
+    )
+
+    response = client.post(
+        "/check-eligibility/",
+        json={"nct_id": "NCTBETWEEN", "patient": {"age": 92}},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["eligible"] is False
+    assert any(
+        "Subject is between 18 and 89 years of age" in reason
+        for reason in payload["reasons"]
+    )
+
+
 def test_retrieve_criteria_returns_lists():
     path = trial_store.get_trials_data_path()
     with path.open("r", encoding="utf-8") as f:
