@@ -65,21 +65,28 @@ def test_check_eligibility_exclusion_age_range_blocks_patient():
 def test_call_llm_with_citations_gemini_success(monkeypatch):
     from app.agents import tools
 
-    class FakeResponses:
-        def __init__(self):
-            self.calls = []
-
-        def generate(self, **kwargs):
-            self.calls.append(kwargs)
-            part = types.SimpleNamespace(text="Answer about the trial")
-            content = types.SimpleNamespace(parts=[part])
-            candidate = types.SimpleNamespace(content=content)
-            return types.SimpleNamespace(candidates=[candidate])
-
     class FakeClient:
+        last_instance = None
+
         def __init__(self, api_key):
             assert api_key == "test-key"
-            self.responses = FakeResponses()
+            self.calls = []
+            FakeClient.last_instance = self
+
+            class _Models:
+                def __init__(self, parent):
+                    self._parent = parent
+
+                def generate_content(self, **kwargs):
+                    self._parent.calls.append(kwargs)
+                    part = types.SimpleNamespace(text="Answer about the trial")
+                    content = types.SimpleNamespace(parts=[part])
+                    candidate = types.SimpleNamespace(content=content)
+                    return types.SimpleNamespace(
+                        candidates=[candidate], output_text="Answer about the trial"
+                    )
+
+            self.models = _Models(self)
 
     _install_fake_genai(monkeypatch, FakeClient)
     monkeypatch.setattr(tools.settings, "llm_provider", "gemini", raising=False)
@@ -95,6 +102,10 @@ def test_call_llm_with_citations_gemini_success(monkeypatch):
 
     assert answer == "Answer about the trial"
     assert citations == chunks[:3]
+    assert FakeClient.last_instance.calls
+    payload = FakeClient.last_instance.calls[0]
+    assert payload["contents"][0]["role"] == "system"
+    assert payload["contents"][1]["role"] == "user"
 
 
 def test_call_llm_with_citations_gemini_error(monkeypatch):

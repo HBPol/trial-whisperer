@@ -63,14 +63,28 @@ def call_llm_with_citations(query: str, chunks: List[dict]) -> Tuple[str, List[d
             from google import genai
 
             client = genai.Client(api_key=settings.llm_api_key)
-            prompt = (
-                "You answer questions about clinical trials using the provided"
-                " context. Cite passages using (1), (2) etc.\n\n"
-                f"Context:\n{context}\n\nQuestion: {query}"
-            )
-            response = client.responses.generate(
+            system_instruction = {
+                "role": "system",
+                "parts": [
+                    {
+                        "text": (
+                            "You answer questions about clinical trials using the"
+                            " provided context. Cite passages using (1), (2) etc."
+                        )
+                    }
+                ],
+            }
+            user_content = {
+                "role": "user",
+                "parts": [
+                    {
+                        "text": f"Context:\n{context}\n\nQuestion: {query}",
+                    }
+                ],
+            }
+            response = client.models.generate_content(
                 model=settings.llm_model or "gemini-1.5-flash",
-                input=[{"role": "user", "parts": [{"text": prompt}]}],
+                contents=[system_instruction, user_content],
             )
             answer = _extract_gemini_answer(response)
         except Exception:
@@ -119,7 +133,11 @@ def _extract_gemini_answer(response: Any) -> str:
 
     if answer_chunks:
         return "\n".join(chunk for chunk in answer_chunks if chunk).strip()
-
+    output_text = getattr(response, "output_text", None)
+    if output_text is None and isinstance(response, dict):
+        output_text = response.get("output_text")
+    if output_text:
+        return str(output_text).strip()
     fallback_text = getattr(response, "text", None)
     if fallback_text is None and isinstance(response, dict):
         fallback_text = response.get("text")
