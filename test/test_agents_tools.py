@@ -79,12 +79,13 @@ def test_call_llm_with_citations_gemini_success(monkeypatch):
 
                 def generate_content(self, **kwargs):
                     self._parent.calls.append(kwargs)
-                    part = types.SimpleNamespace(text="Answer about the trial")
-                    content = types.SimpleNamespace(parts=[part])
-                    candidate = types.SimpleNamespace(content=content)
-                    return types.SimpleNamespace(
-                        candidates=[candidate], output_text="Answer about the trial"
-                    )
+
+                    class _Candidate:
+                        def __init__(self):
+                            part = types.SimpleNamespace(text="Answer about the trial")
+                            self.content = types.SimpleNamespace(parts=[part])
+
+                    return types.SimpleNamespace(candidates=[_Candidate()])
 
             self.models = _Models(self)
 
@@ -104,8 +105,25 @@ def test_call_llm_with_citations_gemini_success(monkeypatch):
     assert citations == chunks[:3]
     assert FakeClient.last_instance.calls
     payload = FakeClient.last_instance.calls[0]
-    assert payload["contents"][0]["role"] == "system"
-    assert payload["contents"][1]["role"] == "user"
+    assert payload["model"] == "gemini-1.5-flash"
+    assert isinstance(payload["contents"], list)
+    assert len(payload["contents"]) == 2
+    system_message, user_message = payload["contents"]
+
+    assert system_message["role"] == "system"
+    assert isinstance(system_message["parts"], list)
+    assert system_message["parts"][0]["text"].startswith(
+        "You answer questions about clinical trials"
+    )
+
+    assert user_message["role"] == "user"
+    assert isinstance(user_message["parts"], list)
+    user_text = user_message["parts"][0]["text"]
+    assert user_text.startswith(
+        "Context:\n(1) [Trial NCT0001] Summary: Study summary.\n(2) [Trial NCT0002]"
+    )
+    assert "Details: More info." in user_text
+    assert "Question: What is studied?" in user_text
 
 
 def test_call_llm_with_citations_gemini_error(monkeypatch):
