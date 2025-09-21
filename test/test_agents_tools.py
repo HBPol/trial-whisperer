@@ -107,12 +107,10 @@ def test_call_llm_with_citations_gemini_success(monkeypatch):
     payload = FakeClient.last_instance.calls[0]
     assert payload["model"] == "gemini-1.5-flash"
     assert isinstance(payload["contents"], list)
-    assert len(payload["contents"]) == 2
-    system_message, user_message = payload["contents"]
+    assert len(payload["contents"]) == 1
+    user_message = payload["contents"][0]
 
-    assert system_message["role"] == "system"
-    assert isinstance(system_message["parts"], list)
-    assert system_message["parts"][0]["text"].startswith(
+    assert payload["system_instruction"].startswith(
         "You answer questions about clinical trials"
     )
 

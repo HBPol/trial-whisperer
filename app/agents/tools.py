@@ -63,17 +63,10 @@ def call_llm_with_citations(query: str, chunks: List[dict]) -> Tuple[str, List[d
             from google import genai
 
             client = genai.Client(api_key=settings.llm_api_key)
-            system_instruction = {
-                "role": "system",
-                "parts": [
-                    {
-                        "text": (
-                            "You answer questions about clinical trials using the"
-                            " provided context. Cite passages using (1), (2) etc."
-                        )
-                    }
-                ],
-            }
+            instruction_text = (
+                "You answer questions about clinical trials using the"
+                " provided context. Cite passages using (1), (2) etc."
+            )
             user_content = {
                 "role": "user",
                 "parts": [
@@ -84,7 +77,7 @@ def call_llm_with_citations(query: str, chunks: List[dict]) -> Tuple[str, List[d
             }
             response = client.models.generate_content(
                 model=settings.llm_model or "gemini-1.5-flash",
-                contents=[system_instruction, user_content],
+                contents=[instruction_text, user_content],
             )
             answer = _extract_gemini_answer(response)
         except Exception:
