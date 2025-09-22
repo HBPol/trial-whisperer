@@ -53,8 +53,9 @@ python eval/eval.py
 When invoked without arguments, the script loads `eval/testset.sample.jsonl`
 and points the fallback retrieval index at
 `.data/test_processed/trials.jsonl`. The bundled sample now contains 21
-question/answer pairs pulled from the processed glioblastoma corpus. The
-queries span eligibility criteria, interventions, outcomes, trial titles, and
+`.data/processed/trials.jsonl`. The bundled sample now contains 21
+question/answer pairs pulled from the processed glioblastoma corpus used by
+the application. The
 conditions so the evaluation run exercises the same sections the application
 retrieves. The harness prints a short summary that includes the answer exact
 match rate, citation coverage for examples that expect specific sections, and

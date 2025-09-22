@@ -19,7 +19,7 @@ from app.main import app
 from app.retrieval import search_client, trial_store
 
 DEFAULT_TESTSET_PATH = Path("eval/testset.sample.jsonl")
-DEFAULT_TRIALS_DATA_PATH = Path(".data/test_processed/trials.jsonl")
+DEFAULT_TRIALS_DATA_PATH = Path(".data/processed/trials.jsonl")
 
 
 def load_examples(path: Path) -> List[Dict[str, Any]]:
@@ -240,8 +240,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=None,
         help=(
             "Path to the processed trials dataset used by the fallback search. "
-            "Defaults to '.data/test_processed/trials.jsonl' when running the "
-            "sample evaluation."
+            "Defaults to '.data/processed/trials.jsonl' when running the sample "
+            "evaluation."
         ),
     )
     return parser.parse_args(argv)

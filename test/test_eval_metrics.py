@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -111,3 +112,28 @@ def test_sample_dataset_has_expected_scope():
     }
 
     assert expected_sections.issubset(sections_seen)
+
+
+def test_sample_dataset_trials_exist_in_processed_index():
+    fallback_path = Path(".data/processed/trials.jsonl")
+    assert fallback_path.exists(), "Fallback trials dataset is missing"
+
+    examples = load_examples(Path("eval/testset.sample.jsonl"))
+    sample_nct_ids = {
+        example.get("nct_id") for example in examples if example.get("nct_id")
+    }
+    assert sample_nct_ids, "Sample evaluation dataset must contain trial identifiers"
+
+    fallback_nct_ids = set()
+    with fallback_path.open("r", encoding="utf-8") as handle:
+        for raw_line in handle:
+            line = raw_line.strip()
+            if not line:
+                continue
+            record = json.loads(line)
+            nct_id = record.get("nct_id")
+            if nct_id:
+                fallback_nct_ids.add(nct_id)
+
+    missing_ids = sorted(sample_nct_ids - fallback_nct_ids)
+    assert not missing_ids, f"NCT IDs missing from fallback dataset: {missing_ids}"
