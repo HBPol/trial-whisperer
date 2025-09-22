@@ -1,9 +1,12 @@
+from pathlib import Path
+
 import pytest
 
 from eval.eval import (
     answer_exact_match,
     citations_match,
     compute_metrics,
+    load_examples,
     normalize_answer,
 )
 
@@ -82,3 +85,29 @@ def test_compute_metrics_aggregates_counts_and_accuracy():
     assert citation_stats["accuracy"] == pytest.approx(0.5)
 
     assert metrics["error_count"] == 1
+
+
+def test_sample_dataset_has_expected_scope():
+    examples = load_examples(Path("eval/testset.sample.jsonl"))
+
+    assert len(examples) >= 20
+
+    sections_seen = set()
+    for example in examples:
+        assert example.get("query")
+        answers = example.get("answers")
+        assert isinstance(answers, list) and answers
+        sections = example.get("sections")
+        assert isinstance(sections, list)
+        sections_seen.update(sections)
+
+    expected_sections = {
+        "eligibility.inclusion",
+        "eligibility.exclusion",
+        "interventions",
+        "outcomes",
+        "condition",
+        "title",
+    }
+
+    assert expected_sections.issubset(sections_seen)

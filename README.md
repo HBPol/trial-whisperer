@@ -52,11 +52,16 @@ python eval/eval.py
 
 When invoked without arguments, the script loads `eval/testset.sample.jsonl`
 and points the fallback retrieval index at
-`.data/test_processed/trials.jsonl`. The evaluation run prints a short summary
-that includes the answer exact match rate, citation coverage for examples that
-expect specific sections, and the number of errors encountered during the run.
-The same metrics, along with per-example details, are written to the console as
-a JSON report or to the path provided via `--json-report`:
+`.data/test_processed/trials.jsonl`. The bundled sample now contains 21
+question/answer pairs pulled from the processed glioblastoma corpus. The
+queries span eligibility criteria, interventions, outcomes, trial titles, and
+conditions so the evaluation run exercises the same sections the application
+retrieves. The harness prints a short summary that includes the answer exact
+match rate, citation coverage for examples that expect specific sections, and
+the number of errors encountered during the run. The same metrics, along with
+per-example details, are written to the console as a JSON report or to the path
+provided via `--json-report`:
+
 
 ```bash
 python eval/eval.py --json-report reports/eval.json
