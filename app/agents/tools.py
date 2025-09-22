@@ -122,7 +122,6 @@ def _format_context(chunks: List[dict]) -> str:
     parts = []
     for idx, chunk in enumerate(chunks, start=1):
         parts.append(_format_chunk_line(chunk, idx))
-        return "\n".join(parts)
     return "\n".join(parts)
 
 
