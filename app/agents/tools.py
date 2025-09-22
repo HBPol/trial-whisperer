@@ -267,7 +267,7 @@ def call_llm_with_citations(query: str, chunks: List[dict]) -> Tuple[str, List[d
             raise HTTPException(
                 status_code=502, detail="LLM provider call failed"
             ) from exc
-        return demo_answer, citations
+        return answer, citations
 
         # Fallback when no LLM provider is configured
     answer = f"[DEMO] Based on {len(chunks)} retrieved passages, see citations."
