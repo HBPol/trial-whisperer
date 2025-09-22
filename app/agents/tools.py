@@ -215,6 +215,87 @@ def _extract_answer_fragments(answer: str) -> List[str]:
     return fragments
 
 
+def align_answer_to_context(answer: str, context_chunks: List[dict]) -> str:
+    """Return the closest matching chunk text for ``answer`` when available."""
+
+    if not answer:
+        return answer
+    if not context_chunks:
+        return answer
+
+    stripped_answer = answer.strip()
+    if not stripped_answer:
+        return stripped_answer
+
+    lowered = stripped_answer.lower()
+    if lowered.startswith("[fallback]") or lowered.startswith("[demo]"):
+        return stripped_answer
+
+    normalized_answer = _normalize_for_match(stripped_answer)
+    fragments = _extract_answer_fragments(stripped_answer)
+    answer_tokens = _chunk_keyword_tokens(stripped_answer)
+    answer_token_set = set(answer_tokens)
+    if not (normalized_answer or fragments or answer_token_set):
+        return stripped_answer
+
+    total_token_count = sum(answer_tokens.values())
+    best_candidate: str | None = None
+    best_score: Tuple[int, int, int, int, int, int] | None = None
+
+    for chunk in context_chunks:
+        text = chunk.get("text")
+        if not text:
+            continue
+        candidate = str(text).strip()
+        if not candidate:
+            continue
+
+        normalized_chunk = _normalize_for_match(candidate)
+        if not normalized_chunk:
+            continue
+
+        chunk_tokens = _chunk_keyword_tokens(candidate)
+        chunk_token_set = set(chunk_tokens)
+
+        token_overlap = sum(
+            min(count, chunk_tokens.get(token, 0))
+            for token, count in answer_tokens.items()
+        )
+        unique_overlap = len(answer_token_set & chunk_token_set)
+        fragment_matches = sum(
+            1 for fragment in fragments if fragment and fragment in normalized_chunk
+        )
+        span_match = bool(normalized_answer) and normalized_answer in normalized_chunk
+
+        if not span_match and fragment_matches == 0 and unique_overlap <= 1:
+            continue
+
+        coverage_ratio = 0.0
+        if total_token_count:
+            coverage_ratio = token_overlap / total_token_count
+
+        if not span_match and coverage_ratio < 0.4 and fragment_matches == 0:
+            continue
+
+        score = (
+            int(span_match),
+            fragment_matches,
+            unique_overlap,
+            token_overlap,
+            -abs(len(candidate) - len(stripped_answer)),
+            -len(candidate),
+        )
+
+        if best_score is None or score > best_score:
+            best_score = score
+            best_candidate = candidate
+
+    if best_candidate:
+        return best_candidate
+
+    return stripped_answer
+
+
 def _chunk_keyword_tokens(text: str) -> Counter[str]:
     if not text:
         return Counter()

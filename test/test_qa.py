@@ -75,6 +75,32 @@ def test_ask_strips_citation_markers(monkeypatch):
     assert answer_exact_match(data["answer"], [expected_answer])
 
 
+def test_answer_alignment_restores_context_span(monkeypatch):
+    sample_chunk = {
+        "nct_id": "NCTALIGN01",
+        "section": "Eligibility.Inclusion",
+        "text": "Eligible patients must be at least 18 years of age.",
+    }
+
+    def _fake_retrieve_chunks(query, nct_id):
+        return [sample_chunk]
+
+    def _fake_call_llm(query, chunks):
+        return "At least 18 years of age.", [sample_chunk]
+
+    monkeypatch.setattr(qa, "retrieve_chunks", _fake_retrieve_chunks)
+    monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
+
+    response = client.post(
+        "/ask/",
+        json={"query": "What is the minimum age?", "nct_id": "NCTALIGN01"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["answer"] == sample_chunk["text"]
+
+
 def test_citation_selector_covers_late_sections():
     context_chunks = [
         {
