@@ -6,8 +6,11 @@ import argparse
 import json
 import os
 import sys
+import time
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
-from typing import Any, Dict, List, Sequence
+from typing import Any, Dict, List, Mapping, Sequence
 
 from fastapi.testclient import TestClient
 
@@ -15,11 +18,61 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from app.deps import get_settings
 from app.main import app
 from app.retrieval import search_client, trial_store
 
 DEFAULT_TESTSET_PATH = Path("eval/testset.sample.jsonl")
 DEFAULT_TRIALS_DATA_PATH = Path(".data/processed/trials.jsonl")
+
+MAX_REQUEST_ATTEMPTS = 3
+
+
+def enforce_min_request_interval(
+    last_request_time: float | None, min_interval: float
+) -> None:
+    """Sleep until ``min_interval`` seconds have elapsed since the last call."""
+
+    if min_interval <= 0 or last_request_time is None:
+        return
+    remaining = (last_request_time + min_interval) - time.monotonic()
+    if remaining > 0:
+        time.sleep(remaining)
+
+
+def parse_retry_after(value: str | None) -> float | None:
+    """Return the retry delay encoded in a ``Retry-After`` header, if valid."""
+
+    if not value:
+        return None
+    value = value.strip()
+    if not value:
+        return None
+    try:
+        delay = float(value)
+    except ValueError:
+        try:
+            retry_time = parsedate_to_datetime(value)
+        except (TypeError, ValueError):
+            return None
+        if retry_time is None:
+            return None
+        if retry_time.tzinfo is None:
+            retry_time = retry_time.replace(tzinfo=timezone.utc)
+        now = datetime.now(timezone.utc)
+        delay = (retry_time - now).total_seconds()
+    if delay < 0:
+        return 0.0
+    return delay
+
+
+def get_retry_after_delay(headers: Mapping[str, str]) -> float | None:
+    """Look for a retry delay in the response headers."""
+
+    header_value = headers.get("retry-after")
+    if header_value is None:
+        header_value = headers.get("Retry-After")
+    return parse_retry_after(header_value)
 
 
 def load_examples(path: Path) -> List[Dict[str, Any]]:
@@ -79,11 +132,15 @@ def citations_match(
 
 
 def evaluate_examples(
-    client: TestClient, examples: Sequence[Dict[str, Any]]
+    client: TestClient,
+    examples: Sequence[Dict[str, Any]],
+    *,
+    min_request_interval: float = 0.0,
 ) -> List[Dict[str, Any]]:
     """Call the QA endpoint for each example and capture predictions."""
 
     records: List[Dict[str, Any]] = []
+    last_request_time: float | None = None
     for example in examples:
         query = example.get("query")
         nct_id = example.get("nct_id")
@@ -100,14 +157,37 @@ def evaluate_examples(
         payload = {"query": query, "nct_id": nct_id}
         payload = {k: v for k, v in payload.items() if v}
 
-        try:
-            response = client.post("/ask/", json=payload)
-        except Exception as exc:  # pragma: no cover - network/client failures
+        attempt = 0
+        response = None
+        error_message: str | None = None
+
+        while True:
+            attempt += 1
+            if min_request_interval > 0:
+                enforce_min_request_interval(last_request_time, min_request_interval)
+            try:
+                response = client.post("/ask/", json=payload)
+            except Exception as exc:  # pragma: no cover - network/client failures
+                last_request_time = time.monotonic()
+                error_message = str(exc)
+                response = None
+                break
+
+            last_request_time = time.monotonic()
+
+            if response.status_code == 429 and attempt < MAX_REQUEST_ATTEMPTS:
+                retry_delay = get_retry_after_delay(response.headers)
+                if retry_delay and retry_delay > 0:
+                    time.sleep(retry_delay)
+                continue
+            break
+
+        if response is None:
             record.update(
                 {
                     "answer": None,
                     "citations": [],
-                    "error": str(exc),
+                    "error": error_message,
                     "status_code": None,
                     "answer_exact_match": False,
                     "citation_match": False,
@@ -122,7 +202,7 @@ def evaluate_examples(
                 {
                     "answer": None,
                     "citations": [],
-                    "error": response.text,
+                    "error": error_message or response.text,
                     "answer_exact_match": False,
                     "citation_match": False,
                 }
@@ -244,6 +324,16 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
             "evaluation."
         ),
     )
+    parser.add_argument(
+        "--min-request-interval",
+        dest="min_request_interval",
+        type=float,
+        default=None,
+        help=(
+            "Minimum delay in seconds between /ask/ requests. "
+            "Overrides provider-specific defaults."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -270,8 +360,19 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     examples = load_examples(dataset_path)
 
+    settings = get_settings()
+    min_request_interval = 0.0
+    if (settings.llm_provider or "").lower() == "gemini":
+        min_request_interval = 6.0
+    if args.min_request_interval is not None:
+        min_request_interval = max(args.min_request_interval, 0.0)
+
     with TestClient(app) as client:
-        records = evaluate_examples(client, examples)
+        records = evaluate_examples(
+            client,
+            examples,
+            min_request_interval=min_request_interval,
+        )
 
     metrics = compute_metrics(records)
     report = {

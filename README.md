@@ -68,6 +68,16 @@ provided via `--json-report`:
 python eval/eval.py --json-report reports/eval.json
 ```
 
+When `config/appsettings.toml` points the app at the Gemini provider the
+evaluation harness automatically waits roughly six seconds between `/ask`
+requests to respect the API's published limit. Override the delay with
+`--min-request-interval` (set it to `0` to disable the guard or increase it for
+stricter pacing):
+
+
+```bash
+python eval/eval.py --min-request-interval 3
+```
 During local development or tests the API falls back to an in-memory index when
 no live Qdrant backend is configured. `eval.py` now exposes a `--trials-data`
 flag to control the source JSONL file for that offline index, mirroring the
