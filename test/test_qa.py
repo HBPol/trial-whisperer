@@ -2,10 +2,11 @@ import json
 
 from fastapi.testclient import TestClient
 
+from app.agents import tools
 from app.main import app
 from app.retrieval import search_client, trial_store
 from app.routers import qa
-from eval.eval import answer_exact_match
+from eval.eval import answer_exact_match, citations_match
 
 client = TestClient(app)
 
@@ -72,3 +73,65 @@ def test_ask_strips_citation_markers(monkeypatch):
     assert "(1)" not in data["answer"]
     assert data["answer"].lower().startswith("the study")
     assert answer_exact_match(data["answer"], [expected_answer])
+
+
+def test_citation_selector_covers_late_sections():
+    context_chunks = [
+        {
+            "nct_id": "NCT00000001",
+            "section": "Overview",
+            "text": "This phase 2 study evaluates response rates.",
+        },
+        {
+            "nct_id": "NCT00000001",
+            "section": "Background",
+            "text": "Patients have relapsed disease.",
+        },
+        {
+            "nct_id": "NCT00000001",
+            "section": "Sponsor",
+            "text": "Sponsored by Example Oncology Group.",
+        },
+        {
+            "nct_id": "NCT00000001",
+            "section": "Eligibility.Inclusion",
+            "text": "Adults aged 18 years or older with ECOG performance status 0-1 are eligible.",
+        },
+        {
+            "nct_id": "NCT00000001",
+            "section": "Eligibility.Exclusion",
+            "text": "Patients with prior systemic therapy are excluded from enrollment.",
+        },
+        {
+            "nct_id": "NCT00000001",
+            "section": "Outcome Measures.Primary",
+            "text": "Primary outcome measure is progression-free survival at 12 months.",
+        },
+        {
+            "nct_id": "NCT00000001",
+            "section": "Arms",
+            "text": "Participants receive ibrutinib monotherapy throughout the study.",
+        },
+    ]
+
+    answer = (
+        "Adults aged 18 years or older with ECOG 0-1 may enroll, patients with prior "
+        "systemic therapy are excluded, the primary outcome measures progression-free "
+        "survival, and participants receive ibrutinib monotherapy."
+    )
+
+    citations = tools._select_citations(answer, context_chunks)
+    sections = [citation["section"] for citation in citations]
+    expected_sections = [
+        "Eligibility.Inclusion",
+        "Eligibility.Exclusion",
+        "Outcome Measures.Primary",
+        "Arms",
+    ]
+
+    assert citations_match(citations, expected_sections, "NCT00000001")
+    assert any(
+        section not in {c["section"] for c in context_chunks[:3]}
+        for section in sections
+    )
+    assert len(citations) >= len(expected_sections)

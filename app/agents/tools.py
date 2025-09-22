@@ -1,6 +1,7 @@
 import importlib
 import logging
 import re
+from collections import Counter
 from collections.abc import Iterable
 from functools import lru_cache
 from pathlib import Path
@@ -27,6 +28,8 @@ DEFAULT_QA_SYSTEM_PROMPT = (
 )
 
 _CITATION_MARKER_PATTERN = re.compile(r"\s*(?:\(\s*\d+\s*\)|\[\s*\d+\s*\])")
+_KEYWORD_PATTERN = re.compile(r"[a-z0-9]+", re.IGNORECASE)
+_FRAGMENT_SPLIT_PATTERN = re.compile(r"[\n;]+|(?<!\d)\.(?!\d)")
 _ANSWER_LEADING_PATTERNS = [
     re.compile(r"^\s*(?:answer|final answer)\s*[:\-]\s*", re.IGNORECASE),
     re.compile(
@@ -193,6 +196,132 @@ def _select_chunks_for_context(
     return selected, context_text
 
 
+def _normalize_for_match(text: str) -> str:
+    if not text:
+        return ""
+    normalized = text.replace("\u00a0", " ")
+    normalized = normalized.lower()
+    normalized = re.sub(r"[^a-z0-9]+", " ", normalized)
+    return " ".join(normalized.split())
+
+
+def _extract_answer_fragments(answer: str) -> List[str]:
+    fragments: List[str] = []
+    if not answer:
+        return fragments
+    for part in _FRAGMENT_SPLIT_PATTERN.split(answer):
+        normalized = _normalize_for_match(part)
+        if normalized:
+            fragments.append(normalized)
+    return fragments
+
+
+def _chunk_keyword_tokens(text: str) -> Counter[str]:
+    if not text:
+        return Counter()
+    tokens = _KEYWORD_PATTERN.findall(text.lower())
+    if not tokens:
+        return Counter()
+    return Counter(tokens)
+
+
+def _select_citations(
+    answer: Any,
+    context_chunks: List[dict],
+    *,
+    max_default: int = 3,
+) -> List[dict]:
+    if not context_chunks:
+        return []
+
+    cleaned_answer = clean_answer_text(answer)
+    if not cleaned_answer:
+        return context_chunks[:max_default]
+
+    normalized_answer = _normalize_for_match(cleaned_answer)
+    fragments = _extract_answer_fragments(cleaned_answer)
+
+    answer_tokens = _chunk_keyword_tokens(cleaned_answer)
+    answer_token_set = set(answer_tokens)
+
+    matches = []
+    for index, chunk in enumerate(context_chunks):
+        text = chunk.get("text") or ""
+        normalized_chunk = _normalize_for_match(text)
+        chunk_tokens = _chunk_keyword_tokens(text)
+        token_overlap = sum(
+            min(count, chunk_tokens.get(token, 0))
+            for token, count in answer_tokens.items()
+        )
+        tokens_in_answer = set(chunk_tokens) & answer_token_set
+        fragment_matches = {
+            pos
+            for pos, fragment in enumerate(fragments)
+            if fragment and fragment in normalized_chunk
+        }
+        span_match = bool(normalized_answer) and normalized_answer in normalized_chunk
+        matches.append(
+            {
+                "index": index,
+                "span_match": span_match,
+                "fragment_matches": fragment_matches,
+                "tokens": tokens_in_answer,
+                "token_overlap": token_overlap,
+                "section": chunk.get("section"),
+            }
+        )
+
+    matches.sort(
+        key=lambda item: (
+            -int(item["span_match"]),
+            -len(item["fragment_matches"]),
+            -item["token_overlap"],
+            item["index"],
+        )
+    )
+
+    selected_indices: List[int] = []
+    covered_tokens: set[str] = set()
+    covered_fragments: set[int] = set()
+    covered_sections: set[str] = set()
+    span_covered = False
+
+    for match in matches:
+        section = match["section"]
+        tokens = match["tokens"]
+        new_tokens = bool(answer_token_set and tokens - covered_tokens)
+        new_fragments = bool(match["fragment_matches"] - covered_fragments)
+        new_span = match["span_match"] and not span_covered
+        contributes_section = bool(
+            section
+            and section not in covered_sections
+            and (
+                match["span_match"]
+                or match["fragment_matches"]
+                or match["token_overlap"]
+            )
+        )
+
+        need_chunk = False
+        if len(selected_indices) < max_default:
+            need_chunk = True
+        elif new_span or new_fragments or new_tokens or contributes_section:
+            need_chunk = True
+
+        if not need_chunk:
+            continue
+
+        selected_indices.append(match["index"])
+        covered_fragments.update(match["fragment_matches"])
+        covered_tokens.update(tokens)
+        if section:
+            covered_sections.add(section)
+        if match["span_match"]:
+            span_covered = True
+
+    return [context_chunks[idx] for idx in selected_indices]
+
+
 def _load_error_types(module_name: str, *class_names: str) -> Tuple[type, ...]:
     try:
         module = importlib.import_module(module_name)
@@ -281,7 +410,6 @@ def call_llm_with_citations(query: str, chunks: List[dict]) -> Tuple[str, List[d
         max_chars = DEFAULT_CONTEXT_CHAR_BUDGET
 
     bounded_chunks, context = _select_chunks_for_context(chunks, max_chars=max_chars)
-    citations = bounded_chunks[:3]
     provider_fallback = _provider_unavailable_answer(len(bounded_chunks))
     demo_answer = _demo_answer(len(bounded_chunks))
     system_prompt = _get_qa_system_prompt()
@@ -310,12 +438,14 @@ def call_llm_with_citations(query: str, chunks: List[dict]) -> Tuple[str, List[d
         except Exception as exc:  # pragma: no cover - network failures hard to test
             if not provider_errors or _is_provider_error(exc, provider_errors):
                 logger.exception("OpenAI call failed", exc_info=True)
-                return provider_fallback, citations
+                return provider_fallback, _select_citations(
+                    provider_fallback, bounded_chunks
+                )
             logger.exception("LLM call failed", exc_info=True)
             raise HTTPException(
                 status_code=502, detail="LLM provider call failed"
             ) from exc
-        return answer, citations
+        return answer, _select_citations(answer, bounded_chunks)
 
     if settings.llm_provider == "gemini" and settings.llm_api_key:
         provider_errors = _get_gemini_error_types()
@@ -340,16 +470,18 @@ def call_llm_with_citations(query: str, chunks: List[dict]) -> Tuple[str, List[d
         except Exception as exc:  # pragma: no cover - network failures hard to test
             if not provider_errors or _is_provider_error(exc, provider_errors):
                 logger.exception("Gemini call failed", exc_info=True)
-                return provider_fallback, citations
+                return provider_fallback, _select_citations(
+                    provider_fallback, bounded_chunks
+                )
             logger.exception("LLM call failed", exc_info=True)
             raise HTTPException(
                 status_code=502, detail="LLM provider call failed"
             ) from exc
-        return answer, citations
+        return answer, _select_citations(answer, bounded_chunks)
 
         # Fallback when no LLM provider is configured
-    answer = f"[DEMO] Based on {len(chunks)} retrieved passages, see citations."
-    return answer, citations
+    answer = demo_answer
+    return answer, _select_citations(answer, bounded_chunks)
 
 
 def _extract_gemini_answer(response: Any) -> str:
