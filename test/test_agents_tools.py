@@ -1,9 +1,7 @@
 import sys
 import types
 
-import pytest
-from fastapi import HTTPException
-
+from app.agents import tools
 from app.agents.tools import call_llm_with_citations, check_eligibility
 
 
@@ -91,8 +89,6 @@ def test_check_eligibility_exclusion_age_range_blocks_patient():
 
 
 def test_call_llm_with_citations_gemini_success(monkeypatch):
-    from app.agents import tools
-
     class FakeClient:
         last_instance = None
 
@@ -157,8 +153,6 @@ def test_call_llm_with_citations_gemini_success(monkeypatch):
 
 
 def test_call_llm_with_citations_gemini_error(monkeypatch):
-    from app.agents import tools
-
     class ErrorClient:
         def __init__(self, api_key):
             raise RuntimeError("boom")
@@ -175,8 +169,119 @@ def test_call_llm_with_citations_gemini_error(monkeypatch):
         {"nct_id": "NCT0004", "section": "Other", "text": "Other info."},
     ]
 
-    with pytest.raises(HTTPException) as exc_info:
-        call_llm_with_citations("What is studied?", chunks)
+    expected_chunks, _ = tools._select_chunks_for_context(chunks)
 
-    assert exc_info.value.status_code == 502
-    assert exc_info.value.detail == "LLM provider call failed"
+    answer, citations = call_llm_with_citations("What is studied?", chunks)
+
+    assert answer == tools._provider_unavailable_answer(len(expected_chunks))
+    assert citations == expected_chunks[:3]
+
+
+def test_call_llm_with_citations_truncates_context(monkeypatch):
+    class RecordingClient:
+        last_instance = None
+
+        def __init__(self, api_key):
+            assert api_key == "test-key"
+            self.calls = []
+            RecordingClient.last_instance = self
+
+            class _Models:
+                def __init__(self, parent):
+                    self._parent = parent
+
+                def generate_content(self, **kwargs):
+                    self._parent.calls.append(kwargs)
+
+                    part = types.SimpleNamespace(text="Trimmed answer")
+                    candidate = types.SimpleNamespace(
+                        content=types.SimpleNamespace(parts=[part])
+                    )
+                    return types.SimpleNamespace(candidates=[candidate])
+
+            self.models = _Models(self)
+
+    _install_fake_genai(monkeypatch, RecordingClient)
+    monkeypatch.setattr(tools.settings, "llm_provider", "gemini", raising=False)
+    monkeypatch.setattr(tools.settings, "llm_api_key", "test-key", raising=False)
+    monkeypatch.setattr(tools.settings, "llm_model", "gemini-1.5-flash", raising=False)
+    monkeypatch.setattr(tools, "DEFAULT_CONTEXT_CHAR_BUDGET", 120)
+
+    chunks = [
+        {
+            "nct_id": f"NCT{i:04d}",
+            "section": "Summary",
+            "text": (chr(ord("A") + i) * (140 - i * 5)),
+            "score": 1.0 - i * 0.05,
+        }
+        for i in range(6)
+    ]
+
+    expected_chunks, expected_context = tools._select_chunks_for_context(
+        chunks, max_chars=120
+    )
+
+    answer, citations = call_llm_with_citations("Summarise the study", chunks)
+
+    assert answer == "Trimmed answer"
+    assert citations == expected_chunks[:3]
+    assert RecordingClient.last_instance.calls
+
+    payload = RecordingClient.last_instance.calls[0]
+    user_text = payload["contents"][1]["parts"][0]["text"]
+    context_section, _ = user_text.split("\n\nQuestion:", 1)
+    assert context_section.startswith("Context:\n")
+    context_body = context_section[len("Context:\n") :]
+
+    assert context_body == expected_context
+    assert len(context_body) <= 120
+    if expected_context:
+        assert any(
+            part.endswith("…") or len(part) < len(chunks[0]["text"])
+            for part in context_body.split("\n")
+        )
+
+
+def test_call_llm_with_citations_openai_provider_error(monkeypatch):
+    class FakeRateLimitError(Exception):
+        pass
+
+    class FakeCompletions:
+        def create(self, **kwargs):
+            raise FakeRateLimitError("rate limited")
+
+    class FakeChat:
+        def __init__(self):
+            self.completions = FakeCompletions()
+
+    class FakeClient:
+        def __init__(self, api_key):
+            assert api_key == "openai-key"
+            self.chat = FakeChat()
+
+    fake_openai = types.ModuleType("openai")
+    fake_openai.OpenAI = FakeClient
+    fake_openai.RateLimitError = FakeRateLimitError
+
+    monkeypatch.setitem(sys.modules, "openai", fake_openai)
+    monkeypatch.setattr(
+        tools,
+        "_get_openai_error_types",
+        lambda: (FakeRateLimitError,),
+    )
+
+    monkeypatch.setattr(tools.settings, "llm_provider", "openai", raising=False)
+    monkeypatch.setattr(tools.settings, "llm_api_key", "openai-key", raising=False)
+    monkeypatch.setattr(tools.settings, "llm_model", "gpt-3.5-turbo", raising=False)
+
+    chunks = [
+        {"nct_id": "NCT1000", "section": "Summary", "text": "Alpha details."},
+        {"nct_id": "NCT1001", "section": "Details", "text": "Beta summary."},
+        {"nct_id": "NCT1002", "section": "Extra", "text": "Gamma context."},
+    ]
+
+    expected_chunks, _ = tools._select_chunks_for_context(chunks)
+
+    answer, citations = call_llm_with_citations("What is studied?", chunks)
+    assert answer == tools._provider_unavailable_answer(len(expected_chunks))
+    assert citations == expected_chunks[:3]

@@ -1,3 +1,4 @@
+import importlib
 import logging
 import re
 from collections.abc import Iterable
@@ -10,16 +11,153 @@ from app.deps import get_settings
 settings = get_settings()
 logger = logging.getLogger(__name__)
 
+DEFAULT_CONTEXT_CHAR_BUDGET = 24000
+ELLIPSIS = "\u2026"
+
+
+def _format_chunk_prefix(chunk: dict, index: int) -> str:
+    """Return the static prefix used when rendering a chunk in the context."""
+
+    nct_id = chunk.get("nct_id", "unknown")
+    section = chunk.get("section", "Context")
+    return f"({index}) [Trial {nct_id}] {section}: "
+
+
+def _format_chunk_line(chunk: dict, index: int) -> str:
+    """Return the formatted line for ``chunk`` including the numbered prefix."""
+
+    text = chunk.get("text", "")
+    return f"{_format_chunk_prefix(chunk, index)}{text}"
+
 
 def _format_context(chunks: List[dict]) -> str:
     """Create a numbered context block from retrieved chunks."""
 
     parts = []
     for idx, chunk in enumerate(chunks, start=1):
-        parts.append(
-            f"({idx}) [Trial {chunk['nct_id']}] {chunk['section']}: {chunk['text']}"
-        )
+        parts.append(_format_chunk_line(chunk, idx))
+        return "\n".join(parts)
     return "\n".join(parts)
+
+
+def _truncate_text(text: str, limit: int) -> str:
+    """Trim ``text`` to ``limit`` characters adding an ellipsis when truncated."""
+
+    if limit <= 0:
+        return ""
+    if len(text) <= limit:
+        return text
+    trimmed = text[: max(0, limit - len(ELLIPSIS))].rstrip()
+    if not trimmed:
+        trimmed = text[: max(0, limit - len(ELLIPSIS))]
+    truncated = f"{trimmed}{ELLIPSIS}"
+    return truncated[:limit]
+
+
+def _score_key(item: Tuple[int, dict]) -> Tuple[float, int]:
+    index, chunk = item
+    score = chunk.get("score")
+    if isinstance(score, (int, float)) and not isinstance(score, bool):
+        return (-float(score), index)
+    return (0.0, index)
+
+
+def _select_chunks_for_context(
+    chunks: List[dict],
+    *,
+    max_chars: int = DEFAULT_CONTEXT_CHAR_BUDGET,
+) -> Tuple[List[dict], str]:
+    """Return the highest scoring chunks whose formatted text fits ``max_chars``."""
+
+    if not chunks or max_chars is None or max_chars <= 0:
+        return [], ""
+
+    ordered = [chunk for _, chunk in sorted(enumerate(chunks), key=_score_key)]
+
+    selected: List[dict] = []
+    formatted_parts: List[str] = []
+    current_length = 0
+
+    for chunk in ordered:
+        next_index = len(selected) + 1
+        prefix = _format_chunk_prefix(chunk, next_index)
+        text = str(chunk.get("text", ""))
+        line = f"{prefix}{text}"
+        newline_cost = 1 if formatted_parts else 0
+        projected = current_length + newline_cost + len(line)
+
+        if projected <= max_chars:
+            selected.append(chunk)
+            formatted_parts.append(line)
+            current_length = projected
+            continue
+
+        # Attempt to include a truncated version of the chunk when possible.
+        available = max_chars - current_length - newline_cost
+        if available <= len(prefix):
+            break
+        text_budget = available - len(prefix)
+        truncated_text = _truncate_text(text, text_budget)
+        if not truncated_text:
+            break
+        truncated_line = f"{prefix}{truncated_text}"
+        selected.append(chunk)
+        formatted_parts.append(truncated_line)
+        current_length = current_length + newline_cost + len(truncated_line)
+        break
+
+    context_text = "\n".join(formatted_parts)
+    return selected, context_text
+
+
+def _load_error_types(module_name: str, *class_names: str) -> Tuple[type, ...]:
+    try:
+        module = importlib.import_module(module_name)
+    except Exception:  # pragma: no cover - import errors fall back to defaults
+        return tuple()
+
+    error_types: List[type] = []
+    for name in class_names:
+        candidate = getattr(module, name, None)
+        if isinstance(candidate, type) and issubclass(candidate, BaseException):
+            error_types.append(candidate)
+    return tuple(error_types)
+
+
+def _get_openai_error_types() -> Tuple[type, ...]:
+    return _load_error_types(
+        "openai",
+        "BadRequestError",
+        "RateLimitError",
+        "APIError",
+        "APIStatusError",
+        "OpenAIError",
+    )
+
+
+def _get_gemini_error_types() -> Tuple[type, ...]:
+    return _load_error_types(
+        "google.api_core.exceptions",
+        "GoogleAPIError",
+        "InvalidArgument",
+        "ResourceExhausted",
+        "TooManyRequests",
+    )
+
+
+def _is_provider_error(exc: Exception, candidates: Tuple[type, ...]) -> bool:
+    return any(isinstance(exc, candidate) for candidate in candidates)
+
+
+def _provider_unavailable_answer(num_chunks: int) -> str:
+    return (
+        "[FALLBACK] Unable to reach the language model. "
+        f"Based on {num_chunks} retrieved passages, see citations."
+    )
+
+
+def _demo_answer(num_chunks: int) -> str:
+    return f"[DEMO] Based on {num_chunks} retrieved passages, see citations."
 
 
 def call_llm_with_citations(query: str, chunks: List[dict]) -> Tuple[str, List[dict]]:
@@ -30,10 +168,17 @@ def call_llm_with_citations(query: str, chunks: List[dict]) -> Tuple[str, List[d
     is generated so tests can run without external dependencies.
     """
 
-    context = _format_context(chunks)
-    citations = chunks[:3]
+    max_chars = getattr(settings, "llm_context_char_budget", None)
+    if not isinstance(max_chars, int) or max_chars <= 0:
+        max_chars = DEFAULT_CONTEXT_CHAR_BUDGET
+
+    bounded_chunks, context = _select_chunks_for_context(chunks, max_chars=max_chars)
+    citations = bounded_chunks[:3]
+    provider_fallback = _provider_unavailable_answer(len(bounded_chunks))
+    demo_answer = _demo_answer(len(bounded_chunks))
 
     if settings.llm_provider == "openai" and settings.llm_api_key:
+        provider_errors = _get_openai_error_types()
         try:
             from openai import OpenAI
 
@@ -56,7 +201,10 @@ def call_llm_with_citations(query: str, chunks: List[dict]) -> Tuple[str, List[d
                 messages=messages,
             )
             answer = response.choices[0].message.content.strip()
-        except Exception as exc:
+        except Exception as exc:  # pragma: no cover - network failures hard to test
+            if not provider_errors or _is_provider_error(exc, provider_errors):
+                logger.exception("OpenAI call failed", exc_info=True)
+                return provider_fallback, citations
             logger.exception("LLM call failed", exc_info=True)
             raise HTTPException(
                 status_code=502, detail="LLM provider call failed"
@@ -64,6 +212,7 @@ def call_llm_with_citations(query: str, chunks: List[dict]) -> Tuple[str, List[d
         return answer, citations
 
     if settings.llm_provider == "gemini" and settings.llm_api_key:
+        provider_errors = _get_gemini_error_types()
         try:
             from google import genai
 
@@ -85,12 +234,15 @@ def call_llm_with_citations(query: str, chunks: List[dict]) -> Tuple[str, List[d
                 contents=[instruction_text, user_content],
             )
             answer = _extract_gemini_answer(response)
-        except Exception as exc:
+        except Exception as exc:  # pragma: no cover - network failures hard to test
+            if not provider_errors or _is_provider_error(exc, provider_errors):
+                logger.exception("Gemini call failed", exc_info=True)
+                return provider_fallback, citations
             logger.exception("LLM call failed", exc_info=True)
             raise HTTPException(
                 status_code=502, detail="LLM provider call failed"
             ) from exc
-        return answer, citations
+        return demo_answer, citations
 
         # Fallback when no LLM provider is configured
     answer = f"[DEMO] Based on {len(chunks)} retrieved passages, see citations."
