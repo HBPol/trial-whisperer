@@ -135,3 +135,38 @@ def test_citation_selector_covers_late_sections():
         for section in sections
     )
     assert len(citations) >= len(expected_sections)
+
+
+def test_select_chunks_context_includes_all_lines():
+    chunks = [
+        {
+            "nct_id": "NCT12345678",
+            "section": "Overview",
+            "text": "First chunk of context.",
+            "score": 0.9,
+        },
+        {
+            "nct_id": "NCT12345678",
+            "section": "Eligibility",
+            "text": "Second chunk of context.",
+            "score": 0.8,
+        },
+        {
+            "nct_id": "NCT12345678",
+            "section": "Arms",
+            "text": "Third chunk of context.",
+            "score": 0.7,
+        },
+    ]
+
+    selected, context_text = tools._select_chunks_for_context(chunks, max_chars=1000)
+
+    assert len(selected) == len(chunks)
+
+    expected_lines = [
+        tools._format_chunk_line(chunk, idx)
+        for idx, chunk in enumerate(selected, start=1)
+    ]
+
+    assert context_text.splitlines() == expected_lines
+    assert tools._format_context(selected).splitlines() == expected_lines
