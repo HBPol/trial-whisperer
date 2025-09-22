@@ -26,6 +26,7 @@ def test_ask_returns_answer_and_citations():
     data = response.json()
     assert isinstance(data.get("answer"), str)
     assert data["answer"]
+    assert not data["answer"].startswith("[LLM error]")
     assert "citations" in data and isinstance(data["citations"], list)
     assert len(data["citations"]) >= 1
     citation = data["citations"][0]

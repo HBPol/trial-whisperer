@@ -1,10 +1,14 @@
+import logging
 import re
 from collections.abc import Iterable
 from typing import Any, Dict, List, Tuple
 
+from fastapi import HTTPException
+
 from app.deps import get_settings
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 
 def _format_context(chunks: List[dict]) -> str:
@@ -52,10 +56,11 @@ def call_llm_with_citations(query: str, chunks: List[dict]) -> Tuple[str, List[d
                 messages=messages,
             )
             answer = response.choices[0].message.content.strip()
-        except Exception:
-            answer = (
-                f"[LLM error] Based on {len(chunks)} retrieved passages, see citations."
-            )
+        except Exception as exc:
+            logger.exception("LLM call failed", exc_info=True)
+            raise HTTPException(
+                status_code=502, detail="LLM provider call failed"
+            ) from exc
         return answer, citations
 
     if settings.llm_provider == "gemini" and settings.llm_api_key:
@@ -80,10 +85,11 @@ def call_llm_with_citations(query: str, chunks: List[dict]) -> Tuple[str, List[d
                 contents=[instruction_text, user_content],
             )
             answer = _extract_gemini_answer(response)
-        except Exception:
-            answer = (
-                f"[LLM error] Based on {len(chunks)} retrieved passages, see citations."
-            )
+        except Exception as exc:
+            logger.exception("LLM call failed", exc_info=True)
+            raise HTTPException(
+                status_code=502, detail="LLM provider call failed"
+            ) from exc
         return answer, citations
 
         # Fallback when no LLM provider is configured

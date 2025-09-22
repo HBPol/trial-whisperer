@@ -1,6 +1,9 @@
 import sys
 import types
 
+import pytest
+from fastapi import HTTPException
+
 from app.agents.tools import call_llm_with_citations, check_eligibility
 
 
@@ -172,7 +175,8 @@ def test_call_llm_with_citations_gemini_error(monkeypatch):
         {"nct_id": "NCT0004", "section": "Other", "text": "Other info."},
     ]
 
-    answer, citations = call_llm_with_citations("What is studied?", chunks)
+    with pytest.raises(HTTPException) as exc_info:
+        call_llm_with_citations("What is studied?", chunks)
 
-    assert answer.startswith("[LLM error]")
-    assert citations == chunks[:3]
+    assert exc_info.value.status_code == 502
+    assert exc_info.value.detail == "LLM provider call failed"
