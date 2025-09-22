@@ -10,9 +10,17 @@ def _install_fake_genai(monkeypatch, client_cls):
     fake_google.__path__ = []  # mark as package
     fake_genai = types.ModuleType("google.genai")
     fake_genai.Client = client_cls
+    fake_errors = types.ModuleType("google.genai.errors")
+
+    class ClientError(Exception):
+        pass
+
+    fake_errors.ClientError = ClientError
+    fake_genai.errors = fake_errors
     fake_google.genai = fake_genai
     monkeypatch.setitem(sys.modules, "google", fake_google)
     monkeypatch.setitem(sys.modules, "google.genai", fake_genai)
+    monkeypatch.setitem(sys.modules, "google.genai.errors", fake_errors)
 
 
 def test_check_eligibility_age_within_range():
@@ -155,7 +163,9 @@ def test_call_llm_with_citations_gemini_success(monkeypatch):
 def test_call_llm_with_citations_gemini_error(monkeypatch):
     class ErrorClient:
         def __init__(self, api_key):
-            raise RuntimeError("boom")
+            from google.genai import errors
+
+            raise errors.ClientError("boom")
 
     _install_fake_genai(monkeypatch, ErrorClient)
     monkeypatch.setattr(tools.settings, "llm_provider", "gemini", raising=False)

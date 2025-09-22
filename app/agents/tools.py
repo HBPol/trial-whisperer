@@ -136,13 +136,38 @@ def _get_openai_error_types() -> Tuple[type, ...]:
 
 
 def _get_gemini_error_types() -> Tuple[type, ...]:
-    return _load_error_types(
-        "google.api_core.exceptions",
-        "GoogleAPIError",
-        "InvalidArgument",
-        "ResourceExhausted",
-        "TooManyRequests",
+    provider_errors = list(
+        _load_error_types(
+            "google.api_core.exceptions",
+            "GoogleAPIError",
+            "InvalidArgument",
+            "ResourceExhausted",
+            "TooManyRequests",
+        )
     )
+
+    try:
+        genai_errors = importlib.import_module("google.genai.errors")
+    except Exception:  # pragma: no cover - optional dependency
+        return tuple(provider_errors)
+
+    client_error = getattr(genai_errors, "ClientError", None)
+    if isinstance(client_error, type) and issubclass(client_error, BaseException):
+        client_error_types: List[type] = [client_error]
+        for name in dir(genai_errors):
+            candidate = getattr(genai_errors, name)
+            if (
+                isinstance(candidate, type)
+                and issubclass(candidate, client_error)
+                and candidate not in client_error_types
+            ):
+                client_error_types.append(candidate)
+
+        for error_type in client_error_types:
+            if error_type not in provider_errors:
+                provider_errors.append(error_type)
+
+    return tuple(provider_errors)
 
 
 def _is_provider_error(exc: Exception, candidates: Tuple[type, ...]) -> bool:
