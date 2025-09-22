@@ -2,6 +2,8 @@ import importlib
 import logging
 import re
 from collections.abc import Iterable
+from functools import lru_cache
+from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 from fastapi import HTTPException
@@ -13,6 +15,87 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_CONTEXT_CHAR_BUDGET = 24000
 ELLIPSIS = "\u2026"
+QA_SYSTEM_PROMPT_PATH = (
+    Path(__file__).resolve().parents[1] / "prompts" / "qa_system.txt"
+)
+DEFAULT_QA_SYSTEM_PROMPT = (
+    "You are TrialWhisperer, a clinical-trial protocol assistant. "
+    "Answer only from the provided passages. If the passages do not contain the "
+    "answer, say you don't know. Respond with only the direct answer text "
+    "without inline citation markers or numbering; structured citations are "
+    "handled separately."
+)
+
+_CITATION_MARKER_PATTERN = re.compile(r"\s*(?:\(\s*\d+\s*\)|\[\s*\d+\s*\])")
+_ANSWER_LEADING_PATTERNS = [
+    re.compile(r"^\s*(?:answer|final answer)\s*[:\-]\s*", re.IGNORECASE),
+    re.compile(
+        r"^\s*(?:based on|according to|from|using) (?:the )?(?:provided )?context"
+        r"(?: (?:above|given))?\s*(?:[,:\-]|that)\s*",
+        re.IGNORECASE,
+    ),
+    re.compile(r"^\s*in summary\s*[:\-]\s*", re.IGNORECASE),
+    re.compile(r"^\s*overall\s*[:\-]\s*", re.IGNORECASE),
+    re.compile(r"^\s*this means\s*[:\-]\s*", re.IGNORECASE),
+]
+
+
+@lru_cache(maxsize=1)
+def _get_qa_system_prompt() -> str:
+    """Load the QA system prompt, ensuring direct-answer instructions."""
+
+    prompt_text = DEFAULT_QA_SYSTEM_PROMPT
+    try:
+        file_prompt = QA_SYSTEM_PROMPT_PATH.read_text(encoding="utf-8").strip()
+    except OSError:
+        file_prompt = ""
+    if file_prompt:
+        prompt_text = file_prompt
+
+    normalized_prompt = prompt_text.strip()
+    directive = (
+        "respond with only the direct answer text without inline citation markers"
+    )
+    if directive not in normalized_prompt.lower():
+        normalized_prompt = (
+            f"{normalized_prompt} Respond with only the direct answer text without "
+            "inline citation markers or numbering; structured citations are "
+            "handled separately."
+        ).strip()
+    return normalized_prompt
+
+
+def _strip_leading_phrases(text: str) -> str:
+    """Remove standard leading phrases used by LLM answers."""
+
+    current = text
+    while True:
+        updated = current
+        for pattern in _ANSWER_LEADING_PATTERNS:
+            updated = pattern.sub("", updated)
+        updated = updated.lstrip()
+        if updated == current:
+            return updated
+        current = updated
+
+
+def clean_answer_text(answer: Any) -> str:
+    """Return ``answer`` with extraneous markers and boilerplate removed."""
+
+    if answer is None:
+        return ""
+
+    original = str(answer).strip()
+    if not original:
+        return ""
+
+    cleaned = _CITATION_MARKER_PATTERN.sub("", original)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    cleaned = _strip_leading_phrases(cleaned)
+    cleaned = cleaned.lstrip("-:;, ")
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+
+    return cleaned or original
 
 
 def _format_chunk_prefix(chunk: dict, index: int) -> str:
@@ -201,6 +284,7 @@ def call_llm_with_citations(query: str, chunks: List[dict]) -> Tuple[str, List[d
     citations = bounded_chunks[:3]
     provider_fallback = _provider_unavailable_answer(len(bounded_chunks))
     demo_answer = _demo_answer(len(bounded_chunks))
+    system_prompt = _get_qa_system_prompt()
 
     if settings.llm_provider == "openai" and settings.llm_api_key:
         provider_errors = _get_openai_error_types()
@@ -211,10 +295,7 @@ def call_llm_with_citations(query: str, chunks: List[dict]) -> Tuple[str, List[d
             messages = [
                 {
                     "role": "system",
-                    "content": (
-                        "You answer questions about clinical trials using the"
-                        " provided context. Cite passages using (1), (2) etc."
-                    ),
+                    "content": system_prompt,
                 },
                 {
                     "role": "user",
@@ -242,10 +323,7 @@ def call_llm_with_citations(query: str, chunks: List[dict]) -> Tuple[str, List[d
             from google import genai
 
             client = genai.Client(api_key=settings.llm_api_key)
-            instruction_text = (
-                "You answer questions about clinical trials using the"
-                " provided context. Cite passages using (1), (2) etc."
-            )
+            instruction_text = system_prompt
             user_content = {
                 "role": "user",
                 "parts": [

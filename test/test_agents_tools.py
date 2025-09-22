@@ -143,12 +143,9 @@ def test_call_llm_with_citations_gemini_success(monkeypatch):
     instruction_item, user_message = payload["contents"]
 
     assert isinstance(instruction_item, str)
-    expected_instruction = (
-        "You answer questions about clinical trials using the"
-        " provided context. Cite passages using (1), (2) etc."
-    )
+    expected_instruction = tools._get_qa_system_prompt()
     assert instruction_item == expected_instruction
-    assert expected_instruction in tools.call_llm_with_citations.__code__.co_consts
+    assert "direct answer text" in instruction_item.lower()
 
     assert user_message["role"] == "user"
     assert isinstance(user_message["parts"], list)
