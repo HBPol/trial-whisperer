@@ -157,6 +157,202 @@ def test_answer_alignment_expands_truncated_sentence(monkeypatch):
     assert data["answer"] == expected
 
 
+def test_alignment_expands_patient_label_clause(monkeypatch):
+    sample_chunk = {
+        "nct_id": "NCT06051214",
+        "section": "Eligibility.Exclusion",
+        "text": (
+            "1. Patient who has had a VTE in the 12 months preceding the diagnosis of "
+            "cancer, 2. Patient on low molecular weight heparins, standard "
+            "unfractionated heparins and anti-vitamin K2, 3. Women who are pregnant, "
+            "likely to become pregnant or who are breast-feeding, 4. Persons deprived "
+            "of their liberty, under court protection, under curators or under the "
+            "authority of a guardian, 5. Unable to undergo medical monitoring of the "
+            "trial for geographical, social or psychological reasons."
+        ),
+    }
+
+    def _fake_retrieve_chunks(query, nct_id):
+        return [sample_chunk]
+
+    def _fake_call_llm(query, chunks):
+        answer = (
+            "low molecular weight heparins, standard unfractionated heparins and "
+            "anti-vitamin K2."
+        )
+        return answer, [sample_chunk]
+
+    monkeypatch.setattr(qa, "retrieve_chunks", _fake_retrieve_chunks)
+    monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
+
+    response = client.post(
+        "/ask/",
+        json={
+            "query": "Which anticoagulant therapies exclude someone from NCT06051214?",
+            "nct_id": "NCT06051214",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    expected = (
+        "Patient on low molecular weight heparins, standard unfractionated "
+        "heparins and anti-vitamin K2"
+    )
+    assert data["answer"] == expected
+
+
+def test_alignment_restores_numbered_biopsy_clause(monkeypatch):
+    sample_chunk = {
+        "nct_id": "NCT05386043",
+        "section": "Eligibility.Inclusion",
+        "text": (
+            "1. Subject is between 18 and 89 years of age. 2. Subject has "
+            "radiologically-diagnosed or suspected WHO Grade II-IV glioma based on "
+            "physician review or conformance with published WHO criteria as evaluated "
+            "by the PI*. 3. Subject is treatment-naïve with the exception of previous "
+            "biopsy for the above condition. 4. Subject is planning to undergo surgical "
+            "resection and biopsy of their brain tumor. 5. Subject has sufficient tissue "
+            "so that the study team is able to acquire at least 2 biopsy samples during "
+            "resection. 6. Subject is able to read and write in English."
+        ),
+    }
+
+    def _fake_retrieve_chunks(query, nct_id):
+        return [sample_chunk]
+
+    def _fake_call_llm(query, chunks):
+        return "Able to acquire at least 2 biopsy samples during resection.", [
+            sample_chunk
+        ]
+
+    monkeypatch.setattr(qa, "retrieve_chunks", _fake_retrieve_chunks)
+    monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
+
+    response = client.post(
+        "/ask/",
+        json={
+            "query": "How many biopsy samples must be obtainable during surgery?",
+            "nct_id": "NCT05386043",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    expected = (
+        "Subject has sufficient tissue so that the study team is able to acquire at "
+        "least 2 biopsy samples during resection."
+    )
+    assert data["answer"] == expected
+
+
+def test_alignment_includes_hypofractionated_label(monkeypatch):
+    sample_chunk = {
+        "nct_id": "NCT06740955",
+        "section": "Interventions",
+        "text": (
+            "RADIATION: hypofractionated postoperative radiotherapy RADIATION: "
+            "Conventionally fractionated postoperative radiotherapy"
+        ),
+    }
+
+    def _fake_retrieve_chunks(query, nct_id):
+        return [sample_chunk]
+
+    def _fake_call_llm(query, chunks):
+        return "hypofractionated postoperative radiotherapy", [sample_chunk]
+
+    monkeypatch.setattr(qa, "retrieve_chunks", _fake_retrieve_chunks)
+    monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
+
+    response = client.post(
+        "/ask/",
+        json={
+            "query": "What hypofractionated approach is being tested?",
+            "nct_id": "NCT06740955",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    expected = "RADIATION: hypofractionated postoperative radiotherapy"
+    assert data["answer"] == expected
+
+
+def test_alignment_returns_pet_tracer_label(monkeypatch):
+    sample_chunk = {
+        "nct_id": "NCT06113705",
+        "section": "Interventions",
+        "text": (
+            "DIAGNOSTIC_TEST: 18F-GE-180 PET DIAGNOSTIC_TEST: Advanced MRI OTHER: "
+            "Collection of hematopoietic stem cells"
+        ),
+    }
+
+    def _fake_retrieve_chunks(query, nct_id):
+        return [sample_chunk]
+
+    def _fake_call_llm(query, chunks):
+        return "18F-GE-180 PET", [sample_chunk]
+
+    monkeypatch.setattr(qa, "retrieve_chunks", _fake_retrieve_chunks)
+    monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
+
+    response = client.post(
+        "/ask/",
+        json={
+            "query": "Which PET tracer is collected as part of the regimen?",
+            "nct_id": "NCT06113705",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    expected = "DIAGNOSTIC_TEST: 18F-GE-180 PET"
+    assert data["answer"] == expected
+
+
+def test_alignment_captures_fgfr_requirement(monkeypatch):
+    sample_chunk = {
+        "nct_id": "NCT06308822",
+        "section": "Eligibility.Inclusion",
+        "text": (
+            "Patients must meet the disease requirements as outlined in MATCH Master "
+            "Protocol at the time of registration to treatment step (Step 1, 3, 5, 7). "
+            "Patients must have FGFR Amplification as determined via the MATCH Master "
+            "Protocol. Patients must have an electrocardiogram (ECG) within 8 weeks "
+            "prior to treatment."
+        ),
+    }
+
+    def _fake_retrieve_chunks(query, nct_id):
+        return [sample_chunk]
+
+    def _fake_call_llm(query, chunks):
+        return "FGFR Amplification as determined via the MATCH Master Protocol.", [
+            sample_chunk
+        ]
+
+    monkeypatch.setattr(qa, "retrieve_chunks", _fake_retrieve_chunks)
+    monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
+
+    response = client.post(
+        "/ask/",
+        json={
+            "query": "What biomarker must patients carry?",
+            "nct_id": "NCT06308822",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    expected = (
+        "Patients must have FGFR Amplification as determined via the MATCH Master "
+        "Protocol."
+    )
+    assert data["answer"] == expected
+
+
 def test_citation_selector_covers_late_sections():
     context_chunks = [
         {

@@ -1,5 +1,5 @@
 Evaluated 21 examples
-Answer exact match: 13/21 (61.9%)
+Answer exact match: 12/21 (57.1%)
 Citation coverage: 21/21 (100.0%)
 {
   "dataset": "eval/testset.sample.jsonl",
@@ -72,8 +72,8 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "low molecular weight heparins, standard unfractionated heparins and anti-vitamin K2",
-      "answer_exact_match": false,
+      "answer": "Patient on low molecular weight heparins, standard unfractionated heparins and anti-vitamin K2",
+      "answer_exact_match": true,
       "citation_match": true,
       "citations": [
         {
@@ -103,7 +103,7 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "5. Subject has sufficient tissue so that the study team is able to acquire at least 2 biopsy samples during resection.",
+      "answer": "at least 2 biopsy samples",
       "answer_exact_match": false,
       "citation_match": true,
       "citations": [
@@ -176,7 +176,7 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "BRAF non-V600 mutation or BRAF fusion, or another BRAF aberration. Patients with BRAF V600E/K/R/D mutations are excluded.",
+      "answer": "BRAF non-V600 mutation or BRAF fusion, or another BRAF aberration, as determined via the MATCH Master Protocol.",
       "answer_exact_match": false,
       "citation_match": true,
       "citations": [
@@ -269,7 +269,7 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "Patients: Self-report a diagnosis of a primary malignant brain tumor (grade II-IV) \\>2 weeks post-cranial resection or biopsy Elevated Fear of Recurrence Distress Rating Primarily English speaking \\>/= 18 years of age at the time of enrollment Caregivers: nonprofessional caregiver to a patient with a primary malignant brain tumor (grade II-IV) Elevated Fear of Recurrence Distress Rating Primarily English speaking \\>/= 18 years of age at the time of enrollment",
+      "answer": "Caregivers can enroll if they are a nonprofessional caregiver to a patient with a primary malignant brain tumor (grade II-IV), have an elevated Fear of Recurrence Distress Rating, are primarily English speaking, and are 18 years of age or older at the time of enrollment.",
       "answer_exact_match": false,
       "citation_match": true,
       "citations": [
@@ -306,8 +306,8 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "MGMT promoter methylation status must be tested for all patients.",
-      "answer_exact_match": true,
+      "answer": "MGMT promoter methylation status.",
+      "answer_exact_match": false,
       "citation_match": true,
       "citations": [
         {
@@ -337,8 +337,8 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "Hypoxia mapping",
-      "answer_exact_match": true,
+      "answer": "I don\u2019t know.",
+      "answer_exact_match": false,
       "citation_match": true,
       "citations": [
         {
@@ -368,7 +368,7 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "Gliolan",
+      "answer": "DRUG: Gliolan",
       "answer_exact_match": true,
       "citation_match": true,
       "citations": [
@@ -400,8 +400,8 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "hypofractionated postoperative radiotherapy",
-      "answer_exact_match": false,
+      "answer": "RADIATION: hypofractionated postoperative radiotherapy",
+      "answer_exact_match": true,
       "citation_match": true,
       "citations": [
         {
@@ -463,8 +463,8 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "Histological diagnosis of grade 2 or grade 3 meningioma according to the WHO 2021 classification",
-      "answer_exact_match": true,
+      "answer": "grade 2 or grade 3 meningioma",
+      "answer_exact_match": false,
       "citation_match": true,
       "citations": [
         {
@@ -486,16 +486,6 @@ Citation coverage: 21/21 (100.0%)
           "nct_id": "NCT06275919",
           "section": "condition",
           "text_snippet": "Meningioma, Malignant"
-        },
-        {
-          "nct_id": "NCT06275919",
-          "section": "interventions",
-          "text_snippet": "DRUG: Regorafenib 40 MG Oral Tablet DRUG: Local Standard of Care"
-        },
-        {
-          "nct_id": "NCT06275919",
-          "section": "outcomes",
-          "text_snippet": "{'measure': 'Progression free survival (PFS)', 'time_frame': 'Up to 36 months'}"
         }
       ],
       "expected_sections": [
@@ -509,7 +499,7 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "Intensity-Modulated Stereotactic Radiotherapy as an Upfront Scalp-Sparing Intervention for the Treatment of Newly Diagnosed Grade II-IV Gliomas",
+      "answer": "Intensity-Modulated Stereotactic Radiotherapy",
       "answer_exact_match": false,
       "citation_match": true,
       "citations": [
@@ -540,8 +530,8 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "Must have histologically or cytologically confirmed glioblastoma multiforme prior to administration of the DRI \u03b3\u03b4 T cell injection.",
-      "answer_exact_match": true,
+      "answer": "histologically or cytologically confirmed glioblastoma multiforme",
+      "answer_exact_match": false,
       "citation_match": true,
       "citations": [
         {
@@ -576,8 +566,8 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "18F-GE-180",
-      "answer_exact_match": false,
+      "answer": "DIAGNOSTIC_TEST: 18F-GE-180 PET",
+      "answer_exact_match": true,
       "citation_match": true,
       "citations": [
         {
@@ -718,8 +708,8 @@ Citation coverage: 21/21 (100.0%)
   ],
   "metrics": {
     "answer_exact_match": {
-      "accuracy": 0.6190476190476191,
-      "correct": 13,
+      "accuracy": 0.5714285714285714,
+      "correct": 12,
       "total": 21
     },
     "citation_section_match": {

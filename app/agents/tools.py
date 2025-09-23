@@ -6,7 +6,7 @@ from collections import Counter
 from collections.abc import Iterable
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import HTTPException
 
@@ -42,6 +42,8 @@ _ANSWER_LEADING_PATTERNS = [
     re.compile(r"^\s*overall\s*[:\-]\s*", re.IGNORECASE),
     re.compile(r"^\s*this means\s*[:\-]\s*", re.IGNORECASE),
 ]
+
+_LEADING_LIST_NUMERAL_PATTERN = re.compile(r"^\s*(?:\(\d+\)|\d+)[\.)]\s+")
 
 
 @lru_cache(maxsize=1)
@@ -244,6 +246,55 @@ def align_answer_to_context(answer: str, context_chunks: List[dict]) -> str:
     if not (normalized_answer or fragments or answer_token_set):
         return stripped_answer
 
+    reference_variants: List[str] = []
+    seen_variants: set[str] = set()
+
+    for candidate in (cleaned_reference, stripped_answer):
+        if not candidate:
+            continue
+        base = candidate.strip()
+        if not base:
+            continue
+        for option in (base, base.rstrip(" \t.;:,")):
+            if not option:
+                continue
+            key = option.lower()
+            if key in seen_variants:
+                continue
+            reference_variants.append(option)
+            seen_variants.add(key)
+
+    allowed_prefix_roots = {
+        "patient",
+        "patients",
+        "subject",
+        "subjects",
+        "participant",
+        "participants",
+        "cohort",
+        "cohorts",
+        "arm",
+        "arms",
+        "eligible",
+    }
+
+    def _is_valid_prefix(prefix_text: str) -> bool:
+        if not prefix_text:
+            return False
+        stripped = prefix_text.strip()
+        if not stripped:
+            return False
+        if re.fullmatch(r"(?:\(\d+\)|\d+)[\.)]\s*", stripped):
+            return True
+        if re.fullmatch(r"[A-Z0-9 _/\-]{1,30}:", stripped):
+            return True
+        lower = stripped.lower()
+        words = lower.split()
+        if not words:
+            return False
+        first_word = words[0].rstrip("'s")
+        return first_word in allowed_prefix_roots
+
     total_token_count = sum(answer_tokens.values())
 
     def _evaluate_candidate(candidate_text: str):
@@ -331,6 +382,13 @@ def align_answer_to_context(answer: str, context_chunks: List[dict]) -> str:
                 return f"{text}{delimiter[0]}"
         return text
 
+    def _prepare_aligned_text(candidate_text: str) -> str:
+        if not candidate_text:
+            return candidate_text
+        cleaned_candidate = candidate_text.strip()
+        cleaned_candidate = _LEADING_LIST_NUMERAL_PATTERN.sub("", cleaned_candidate)
+        return cleaned_candidate.strip()
+
     baseline_eval = _evaluate_candidate(stripped_answer)
     baseline_score: Tuple[int, int, int, int, int, int]
     if baseline_eval:
@@ -406,9 +464,9 @@ def align_answer_to_context(answer: str, context_chunks: List[dict]) -> str:
 
     if best_candidate != stripped_answer:
         if best_eval and best_eval.get("source_chunk"):
-            return _restore_fragment_text(best_eval)
+            return _prepare_aligned_text(_restore_fragment_text(best_eval))
 
-        return best_candidate
+        return _prepare_aligned_text(best_candidate)
 
     def _should_expand(candidate_eval: dict) -> bool:
         total_candidate_tokens = candidate_eval.get("total_candidate_tokens", 0)
@@ -416,24 +474,217 @@ def align_answer_to_context(answer: str, context_chunks: List[dict]) -> str:
         additional_unique = candidate_eval.get("additional_unique_tokens", 0)
         additional_tokens = candidate_eval.get("additional_token_count", 0)
         candidate_length = candidate_eval.get("length", 0)
+        candidate_text = candidate_eval.get("text", "")
 
         length_limit = max(reference_length * 2, reference_length + 120)
         if reference_length <= 0:
             length_limit = candidate_length
 
-        return (
-            total_token_count >= 4
-            and additional_unique >= 2
-            and additional_tokens >= 3
-            and candidate_fraction <= 0.7
-            and candidate_length <= length_limit
-        )
+        if not candidate_text or not reference_variants:
+            return False
+
+        lowered_candidate = candidate_text.lower()
+        for variant in reference_variants:
+            if not variant:
+                continue
+            lowered_variant = variant.lower()
+            idx = lowered_candidate.find(lowered_variant)
+            if idx == -1:
+                continue
+            prefix = candidate_text[:idx].strip()
+            suffix = candidate_text[idx + len(variant) :].strip()
+            if not prefix and not suffix:
+                continue
+            if candidate_length > length_limit:
+                continue
+
+            prefix_tokens = sum(_chunk_keyword_tokens(prefix).values()) if prefix else 0
+            suffix_tokens = sum(_chunk_keyword_tokens(suffix).values()) if suffix else 0
+
+            if suffix_tokens > 2 or len(suffix) > 40:
+                continue
+
+            if not prefix and suffix:
+                if suffix_tokens == 0 and len(suffix) <= 5:
+                    return True
+                continue
+
+            if not prefix:
+                continue
+
+            base_condition = (
+                total_token_count >= 4
+                and additional_unique >= 2
+                and additional_tokens >= 3
+                and candidate_fraction <= 0.7
+                and candidate_length <= length_limit
+            )
+
+            if (
+                _is_valid_prefix(prefix)
+                and prefix_tokens <= 25
+                and len(prefix) <= length_limit
+            ):
+                if base_condition or prefix_tokens <= 6:
+                    return True
+
+        return False
+
+    def _find_clause_start(text: str, index: int) -> int:
+        start = index
+        while start > 0:
+            ch = text[start - 1]
+            if ch in ".!?;\n":
+                break
+            start -= 1
+
+        length = len(text)
+        while start < length and text[start].isspace():
+            start += 1
+
+        prefix_segment = text[start:index]
+        match = re.match(r"(?:\(\d+\)|\d+[\.)])\s+", prefix_segment)
+        if match:
+            start += match.end()
+
+        return start
+
+    def _find_clause_end(text: str, index: int) -> int:
+        tail = text[index:]
+        if not tail:
+            return len(text)
+
+        candidates: List[int] = []
+
+        list_boundary = re.search(r",\s*(?:\d+[\.)])", tail)
+        if list_boundary:
+            candidates.append(index + list_boundary.start())
+
+        label_boundary = re.search(r"\s+[A-Z][A-Z0-9 _/\-]{1,30}:", tail)
+        if label_boundary:
+            candidates.append(index + label_boundary.start())
+
+        for punct in (".", ";", "!", "?"):
+            pos = tail.find(punct)
+            while pos != -1:
+                # Skip decimal values like 1.5
+                if punct == "." and pos + 1 < len(tail) and tail[pos + 1].isdigit():
+                    pos = tail.find(punct, pos + 1)
+                    continue
+                candidates.append(index + pos + 1)
+                break
+
+        newline_pos = tail.find("\n")
+        if newline_pos != -1:
+            candidates.append(index + newline_pos)
+
+        if not candidates:
+            end = len(text)
+        else:
+            end = min(candidates)
+
+        while end > index and text[end - 1].isspace():
+            end -= 1
+
+        return end
+
+    def _expand_reference_from_chunk(chunk_text: str) -> Optional[str]:
+        if not chunk_text or not reference_variants:
+            return None
+
+        lowered_chunk = chunk_text.lower()
+        for variant in reference_variants:
+            if not variant:
+                continue
+            lowered_variant = variant.lower()
+            match_index = lowered_chunk.find(lowered_variant)
+            if match_index == -1:
+                continue
+            start = _find_clause_start(chunk_text, match_index)
+            end = _find_clause_end(chunk_text, match_index + len(variant))
+            if end <= start:
+                continue
+            candidate = chunk_text[start:end].strip()
+            if not candidate:
+                continue
+
+            candidate_lower = candidate.lower()
+            variant_index = candidate_lower.find(lowered_variant)
+            if (
+                variant_index == -1
+                and lowered_variant.rstrip(" .;:,") != lowered_variant
+            ):
+                trimmed_variant = lowered_variant.rstrip(" .;:,")
+                variant_index = candidate_lower.find(trimmed_variant)
+                if variant_index != -1:
+                    variant_length = len(trimmed_variant)
+                else:
+                    variant_length = len(lowered_variant)
+            else:
+                variant_length = len(lowered_variant)
+
+            if variant_index == -1:
+                variant_index = 0
+                variant_length = len(candidate)
+
+            prefix_segment = candidate[:variant_index].strip()
+            suffix_segment = candidate[variant_index + variant_length :].strip()
+
+            if prefix_segment and not _is_valid_prefix(prefix_segment):
+                continue
+            if suffix_segment:
+                if _chunk_keyword_tokens(suffix_segment):
+                    continue
+                if len(suffix_segment) > 5:
+                    continue
+
+            return candidate
+        return None
 
     if fallback_fragment_eval and _should_expand(fallback_fragment_eval):
-        return _restore_fragment_text(fallback_fragment_eval)
+        restored = _restore_fragment_text(fallback_fragment_eval)
+        return _prepare_aligned_text(restored)
 
     if fallback_eval and _should_expand(fallback_eval):
-        return fallback_eval["text"]
+        return _prepare_aligned_text(fallback_eval["text"])
+
+    expanded_candidates: List[dict] = []
+
+    for chunk in context_chunks:
+        text = chunk.get("text")
+        if not text:
+            continue
+        chunk_text = str(text).strip()
+        if not chunk_text:
+            continue
+        expanded = _expand_reference_from_chunk(chunk_text)
+        if not expanded:
+            continue
+        prepared = _prepare_aligned_text(expanded)
+        if not prepared:
+            continue
+        if prepared.strip().lower() == stripped_answer.lower():
+            continue
+        candidate_eval = _evaluate_candidate(prepared)
+        if not candidate_eval:
+            candidate_eval = {
+                "text": prepared,
+                "score": (
+                    0,
+                    0,
+                    0,
+                    0,
+                    -abs(len(prepared) - reference_length),
+                    -len(prepared),
+                ),
+            }
+        else:
+            candidate_eval["text"] = prepared
+        expanded_candidates.append(candidate_eval)
+
+    if expanded_candidates:
+        best_expanded = max(expanded_candidates, key=lambda item: tuple(item["score"]))
+        return best_expanded["text"]
 
     return stripped_answer
 
