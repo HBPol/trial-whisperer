@@ -159,9 +159,10 @@ def evaluate_examples(
 
         attempt = 0
         response = None
+        data: Dict[str, Any] | None = None
         error_message: str | None = None
 
-        while True:
+        while attempt < MAX_REQUEST_ATTEMPTS:
             attempt += 1
             if min_request_interval > 0:
                 enforce_min_request_interval(last_request_time, min_request_interval)
@@ -180,6 +181,26 @@ def evaluate_examples(
                 if retry_delay and retry_delay > 0:
                     time.sleep(retry_delay)
                 continue
+            if response.status_code != 200:
+                error_message = response.text
+                break
+
+            try:
+                data = response.json()
+            except ValueError as exc:  # pragma: no cover - unexpected response format
+                error_message = str(exc)
+                data = None
+                break
+
+            answer = data.get("answer", "")
+            if isinstance(answer, str) and answer.startswith(("[FALLBACK]", "[DEMO]")):
+                error_message = f"Fallback answer received: {answer}"
+                data = None
+                if attempt < MAX_REQUEST_ATTEMPTS:
+                    continue
+                break
+
+            error_message = None
             break
 
         if response is None:
@@ -197,7 +218,7 @@ def evaluate_examples(
             continue
 
         record["status_code"] = response.status_code
-        if response.status_code != 200:
+        if response.status_code != 200 or data is None:
             record.update(
                 {
                     "answer": None,
@@ -210,7 +231,6 @@ def evaluate_examples(
             records.append(record)
             continue
 
-        data = response.json()
         answer = data.get("answer", "")
         citations = data.get("citations") or []
         if not isinstance(citations, list):
