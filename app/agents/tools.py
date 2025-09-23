@@ -1,6 +1,7 @@
 import importlib
 import logging
 import re
+import time
 from collections import Counter
 from collections.abc import Iterable
 from functools import lru_cache
@@ -496,68 +497,110 @@ def call_llm_with_citations(query: str, chunks: List[dict]) -> Tuple[str, List[d
 
     if settings.llm_provider == "openai" and settings.llm_api_key:
         provider_errors = _get_openai_error_types()
-        try:
-            from openai import OpenAI
+        max_attempts = 3
+        base_delay = 1.0
+        for attempt in range(1, max_attempts + 1):
+            try:
+                from openai import OpenAI
 
-            client = OpenAI(api_key=settings.llm_api_key)
-            messages = [
-                {
-                    "role": "system",
-                    "content": system_prompt,
-                },
-                {
-                    "role": "user",
-                    "content": f"Context:\n{context}\n\nQuestion: {query}",
-                },
-            ]
-            response = client.chat.completions.create(
-                model=settings.llm_model or "gpt-3.5-turbo",
-                messages=messages,
-            )
-            answer = response.choices[0].message.content.strip()
-        except Exception as exc:  # pragma: no cover - network failures hard to test
-            if not provider_errors or _is_provider_error(exc, provider_errors):
-                logger.exception("OpenAI call failed", exc_info=True)
-                return provider_fallback, _select_citations(
-                    provider_fallback, bounded_chunks
+                client = OpenAI(api_key=settings.llm_api_key)
+                messages = [
+                    {
+                        "role": "system",
+                        "content": system_prompt,
+                    },
+                    {
+                        "role": "user",
+                        "content": f"Context:\n{context}\n\nQuestion: {query}",
+                    },
+                ]
+                response = client.chat.completions.create(
+                    model=settings.llm_model or "gpt-3.5-turbo",
+                    messages=messages,
                 )
-            logger.exception("LLM call failed", exc_info=True)
-            raise HTTPException(
-                status_code=502, detail="LLM provider call failed"
-            ) from exc
-        return answer, _select_citations(answer, bounded_chunks)
+                answer = response.choices[0].message.content.strip()
+            except Exception as exc:  # pragma: no cover - network failures hard to test
+                is_provider_error = not provider_errors or _is_provider_error(
+                    exc, provider_errors
+                )
+                if is_provider_error:
+                    logger.exception(
+                        "OpenAI call failed on attempt %s/%s",
+                        attempt,
+                        max_attempts,
+                        exc_info=True,
+                    )
+                    if attempt == max_attempts:
+                        break
+                    sleep_seconds = base_delay * (2 ** (attempt - 1))
+                    time.sleep(sleep_seconds)
+                    continue
+                logger.exception("LLM call failed", exc_info=True)
+                raise HTTPException(
+                    status_code=502, detail="LLM provider call failed"
+                ) from exc
+            else:
+                return answer, _select_citations(answer, bounded_chunks)
+
+            logger.error(
+                "OpenAI provider unavailable after %s attempts; returning fallback response",
+                max_attempts,
+            )
+            return provider_fallback, _select_citations(
+                provider_fallback, bounded_chunks
+            )
 
     if settings.llm_provider == "gemini" and settings.llm_api_key:
         provider_errors = _get_gemini_error_types()
-        try:
-            from google import genai
+        max_attempts = 3
+        base_delay = 1.0
+        for attempt in range(1, max_attempts + 1):
+            try:
+                from google import genai
 
-            client = genai.Client(api_key=settings.llm_api_key)
-            instruction_text = system_prompt
-            user_content = {
-                "role": "user",
-                "parts": [
-                    {
-                        "text": f"Context:\n{context}\n\nQuestion: {query}",
-                    }
-                ],
-            }
-            response = client.models.generate_content(
-                model=settings.llm_model or "gemini-1.5-flash",
-                contents=[instruction_text, user_content],
-            )
-            answer = _extract_gemini_answer(response)
-        except Exception as exc:  # pragma: no cover - network failures hard to test
-            if not provider_errors or _is_provider_error(exc, provider_errors):
-                logger.exception("Gemini call failed", exc_info=True)
-                return provider_fallback, _select_citations(
-                    provider_fallback, bounded_chunks
+                client = genai.Client(api_key=settings.llm_api_key)
+                instruction_text = system_prompt
+                user_content = {
+                    "role": "user",
+                    "parts": [
+                        {
+                            "text": f"Context:\n{context}\n\nQuestion: {query}",
+                        }
+                    ],
+                }
+                response = client.models.generate_content(
+                    model=settings.llm_model or "gemini-1.5-flash",
+                    contents=[instruction_text, user_content],
                 )
-            logger.exception("LLM call failed", exc_info=True)
-            raise HTTPException(
-                status_code=502, detail="LLM provider call failed"
-            ) from exc
-        return answer, _select_citations(answer, bounded_chunks)
+                answer = _extract_gemini_answer(response)
+            except Exception as exc:  # pragma: no cover - network failures hard to test
+                is_provider_error = not provider_errors or _is_provider_error(
+                    exc, provider_errors
+                )
+                if is_provider_error:
+                    logger.exception(
+                        "Gemini call failed on attempt %s/%s",
+                        attempt,
+                        max_attempts,
+                        exc_info=True,
+                    )
+                    if attempt == max_attempts:
+                        break
+                    sleep_seconds = base_delay * (2 ** (attempt - 1))
+                    time.sleep(sleep_seconds)
+                    continue
+                logger.exception("LLM call failed", exc_info=True)
+                raise HTTPException(
+                    status_code=502, detail="LLM provider call failed"
+                ) from exc
+            else:
+                return answer, _select_citations(answer, bounded_chunks)
+
+        logger.error(
+            "Gemini provider unavailable after %s attempts; returning fallback response",
+            max_attempts,
+        )
+        return provider_fallback, _select_citations(provider_fallback, bounded_chunks)
 
         # Fallback when no LLM provider is configured
     answer = demo_answer
