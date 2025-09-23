@@ -232,30 +232,33 @@ def align_answer_to_context(answer: str, context_chunks: List[dict]) -> str:
     if lowered.startswith("[fallback]") or lowered.startswith("[demo]"):
         return stripped_answer
 
-    normalized_answer = _normalize_for_match(stripped_answer)
-    fragments = _extract_answer_fragments(stripped_answer)
-    answer_tokens = _chunk_keyword_tokens(stripped_answer)
+    cleaned_reference = clean_answer_text(stripped_answer) or stripped_answer
+    reference_length = len(cleaned_reference)
+    if reference_length <= 0:
+        reference_length = len(stripped_answer)
+
+    normalized_answer = _normalize_for_match(cleaned_reference)
+    fragments = _extract_answer_fragments(cleaned_reference)
+    answer_tokens = _chunk_keyword_tokens(cleaned_reference)
     answer_token_set = set(answer_tokens)
     if not (normalized_answer or fragments or answer_token_set):
         return stripped_answer
 
     total_token_count = sum(answer_tokens.values())
-    best_candidate: str | None = None
-    best_score: Tuple[int, int, int, int, int, int] | None = None
 
-    for chunk in context_chunks:
-        text = chunk.get("text")
-        if not text:
-            continue
-        candidate = str(text).strip()
-        if not candidate:
-            continue
+    def _evaluate_candidate(candidate_text: str):
+        candidate_stripped = candidate_text.strip()
+        if not candidate_stripped:
+            return None
 
-        normalized_chunk = _normalize_for_match(candidate)
-        if not normalized_chunk:
-            continue
+        normalized_candidate = _normalize_for_match(candidate_stripped)
+        if not normalized_candidate:
+            return None
 
-        chunk_tokens = _chunk_keyword_tokens(candidate)
+        chunk_tokens = _chunk_keyword_tokens(candidate_stripped)
+        if not chunk_tokens:
+            return None
+
         chunk_token_set = set(chunk_tokens)
 
         token_overlap = sum(
@@ -264,35 +267,173 @@ def align_answer_to_context(answer: str, context_chunks: List[dict]) -> str:
         )
         unique_overlap = len(answer_token_set & chunk_token_set)
         fragment_matches = sum(
-            1 for fragment in fragments if fragment and fragment in normalized_chunk
+            1 for fragment in fragments if fragment and fragment in normalized_candidate
         )
-        span_match = bool(normalized_answer) and normalized_answer in normalized_chunk
+        span_match = (
+            bool(normalized_answer) and normalized_answer in normalized_candidate
+        )
 
         if not span_match and fragment_matches == 0 and unique_overlap <= 1:
-            continue
+            return None
 
         coverage_ratio = 0.0
         if total_token_count:
             coverage_ratio = token_overlap / total_token_count
 
-        if not span_match and coverage_ratio < 0.4 and fragment_matches == 0:
-            continue
+        if not span_match and fragment_matches == 0 and coverage_ratio < 0.4:
+            return None
+
+        total_candidate_tokens = sum(chunk_tokens.values())
+        candidate_fraction = (
+            token_overlap / total_candidate_tokens if total_candidate_tokens else 0.0
+        )
+        additional_token_count = max(0, total_candidate_tokens - token_overlap)
+        additional_unique_tokens = len(chunk_token_set - answer_token_set)
+
+        candidate_length = len(candidate_stripped)
 
         score = (
             int(span_match),
             fragment_matches,
             unique_overlap,
             token_overlap,
-            -abs(len(candidate) - len(stripped_answer)),
-            -len(candidate),
+            -abs(candidate_length - reference_length),
+            -candidate_length,
         )
 
-        if best_score is None or score > best_score:
-            best_score = score
-            best_candidate = candidate
+        return {
+            "text": candidate_stripped,
+            "score": score,
+            "length": candidate_length,
+            "coverage_ratio": coverage_ratio,
+            "token_overlap": token_overlap,
+            "unique_overlap": unique_overlap,
+            "candidate_fraction": candidate_fraction,
+            "additional_token_count": additional_token_count,
+            "additional_unique_tokens": additional_unique_tokens,
+            "total_candidate_tokens": total_candidate_tokens,
+        }
 
-    if best_candidate:
+    def _restore_fragment_text(candidate_eval: dict) -> str:
+        text = candidate_eval.get("text")
+        source_chunk = candidate_eval.get("source_chunk")
+        if not text or not source_chunk:
+            return text
+        start_index = source_chunk.find(text)
+        if start_index == -1:
+            return text
+        end_index = start_index + len(text)
+        suffix = source_chunk[end_index:]
+        match = re.match(r"^(\s*[.;])", suffix)
+        if match:
+            delimiter = match.group(0).strip()
+            if delimiter:
+                return f"{text}{delimiter[0]}"
+        return text
+
+    baseline_eval = _evaluate_candidate(stripped_answer)
+    baseline_score: Tuple[int, int, int, int, int, int]
+    if baseline_eval:
+        baseline_score = tuple(baseline_eval["score"])
+    else:
+        baseline_score = (
+            0,
+            0,
+            0,
+            0,
+            -abs(len(stripped_answer) - reference_length),
+            -len(stripped_answer),
+        )
+
+    best_candidate = stripped_answer
+    best_score = baseline_score
+    best_eval = baseline_eval
+
+    seen_candidates = {stripped_answer}
+    fallback_fragment_eval = None
+    fallback_eval = None
+
+    for chunk in context_chunks:
+        text = chunk.get("text")
+        if not text:
+            continue
+        chunk_text = str(text).strip()
+        if not chunk_text:
+            continue
+
+        if chunk_text not in seen_candidates:
+            seen_candidates.add(chunk_text)
+            chunk_eval = _evaluate_candidate(chunk_text)
+            if chunk_eval:
+                if chunk_eval["length"] <= reference_length:
+                    if tuple(chunk_eval["score"]) > best_score:
+                        best_candidate = chunk_eval["text"]
+                        best_score = tuple(chunk_eval["score"])
+                        best_eval = chunk_eval
+                else:
+                    if fallback_eval is None:
+                        fallback_eval = chunk_eval
+                    elif tuple(chunk_eval["score"]) > tuple(fallback_eval["score"]):
+                        fallback_eval = chunk_eval
+
+        for fragment in _FRAGMENT_SPLIT_PATTERN.split(chunk_text):
+            fragment_text = fragment.strip()
+            if not fragment_text:
+                continue
+            if fragment_text in seen_candidates:
+                continue
+            seen_candidates.add(fragment_text)
+
+            fragment_eval = _evaluate_candidate(fragment_text)
+            if not fragment_eval:
+                continue
+
+            fragment_eval["source_chunk"] = chunk_text
+
+            if fragment_eval["length"] > reference_length:
+                if fallback_fragment_eval is None:
+                    fallback_fragment_eval = fragment_eval
+                elif tuple(fragment_eval["score"]) > tuple(
+                    fallback_fragment_eval["score"]
+                ):
+                    fallback_fragment_eval = fragment_eval
+                continue
+
+            if tuple(fragment_eval["score"]) > best_score:
+                best_candidate = fragment_eval["text"]
+                best_score = tuple(fragment_eval["score"])
+                best_eval = fragment_eval
+
+    if best_candidate != stripped_answer:
+        if best_eval and best_eval.get("source_chunk"):
+            return _restore_fragment_text(best_eval)
+
         return best_candidate
+
+    def _should_expand(candidate_eval: dict) -> bool:
+        total_candidate_tokens = candidate_eval.get("total_candidate_tokens", 0)
+        candidate_fraction = candidate_eval.get("candidate_fraction", 0.0)
+        additional_unique = candidate_eval.get("additional_unique_tokens", 0)
+        additional_tokens = candidate_eval.get("additional_token_count", 0)
+        candidate_length = candidate_eval.get("length", 0)
+
+        length_limit = max(reference_length * 2, reference_length + 120)
+        if reference_length <= 0:
+            length_limit = candidate_length
+
+        return (
+            total_token_count >= 4
+            and additional_unique >= 2
+            and additional_tokens >= 3
+            and candidate_fraction <= 0.7
+            and candidate_length <= length_limit
+        )
+
+    if fallback_fragment_eval and _should_expand(fallback_fragment_eval):
+        return _restore_fragment_text(fallback_fragment_eval)
+
+    if fallback_eval and _should_expand(fallback_eval):
+        return fallback_eval["text"]
 
     return stripped_answer
 

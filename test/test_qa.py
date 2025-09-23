@@ -101,6 +101,62 @@ def test_answer_alignment_restores_context_span(monkeypatch):
     assert data["answer"] == sample_chunk["text"]
 
 
+def test_answer_alignment_preserves_exact_gold_answer(monkeypatch):
+    sample_chunk = {
+        "nct_id": "NCTALIGN02",
+        "section": "Arms",
+        "text": "The investigational drug is pembrolizumab.",
+    }
+
+    def _fake_retrieve_chunks(query, nct_id):
+        return [sample_chunk]
+
+    def _fake_call_llm(query, chunks):
+        return "Pembrolizumab.", [sample_chunk]
+
+    monkeypatch.setattr(qa, "retrieve_chunks", _fake_retrieve_chunks)
+    monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
+
+    response = client.post(
+        "/ask/",
+        json={"query": "What is the study drug?", "nct_id": "NCTALIGN02"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["answer"] == "Pembrolizumab."
+
+
+def test_answer_alignment_expands_truncated_sentence(monkeypatch):
+    sample_chunk = {
+        "nct_id": "NCTALIGN03",
+        "section": "Eligibility.Inclusion",
+        "text": (
+            "Eligible patients must be at least 18 years of age. "
+            "Participants also need adequate organ function."
+        ),
+    }
+
+    def _fake_retrieve_chunks(query, nct_id):
+        return [sample_chunk]
+
+    def _fake_call_llm(query, chunks):
+        return "At least 18 years of age.", [sample_chunk]
+
+    monkeypatch.setattr(qa, "retrieve_chunks", _fake_retrieve_chunks)
+    monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
+
+    response = client.post(
+        "/ask/",
+        json={"query": "What is the minimum age?", "nct_id": "NCTALIGN03"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    expected = "Eligible patients must be at least 18 years of age."
+    assert data["answer"] == expected
+
+
 def test_citation_selector_covers_late_sections():
     context_chunks = [
         {

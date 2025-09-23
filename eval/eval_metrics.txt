@@ -1,12 +1,12 @@
 Evaluated 21 examples
-Answer exact match: 2/21 (9.5%)
+Answer exact match: 13/21 (61.9%)
 Citation coverage: 21/21 (100.0%)
 {
   "dataset": "eval/testset.sample.jsonl",
   "examples": [
     {
-      "answer": "1. The participant (or legally acceptable representative) has provided documented informed consent for the study. 2. Be \u2265 18 years of age on day of providing informed consent. 3. Participant with new diagnosis of GBM according to World Health Organization (WHO) 2021 Classification. 4. Recovered from maximal debulking surgery (gross total resection, partial resection and biopsy-only patients are all acceptable), Gliadel wafers placement at the time of surgical resection is not allowed. 5. Have completed standard adjuvant chemoradiotherapy of radiotherapy (RT) according to local practice (56-64 Gy), and concomitant TMZ chemotherapy. 6. Amenable to treatment with Optune concomitant with maintenance TMZ (150-200 mg/m\\^2 daily x 5, Q28 days). 7. Have an Eastern Cooperative Oncology Group (ECOG) Performance Status of 0 to 1 assessed within 7 days before randomization. 8. Stable or decreasing dose of corticosteroids (dexamethasone \u2264 2mg or equivalent) for the last 7 days prior to randomization, if applicable.",
-      "answer_exact_match": false,
+      "answer": "Have an Eastern Cooperative Oncology Group (ECOG) Performance Status of 0 to 1 assessed within 7 days before randomization.",
+      "answer_exact_match": true,
       "citation_match": true,
       "citations": [
         {
@@ -36,8 +36,8 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "Men and women \u226518 years of age Histologically confirmed GBM at first or second recurrence after concurrent or adjuvant chemotherapy or radiotherapy (must have received temozolomide). Radiographic demonstration of disease progression by MRI following prior therapy. Measurable disease (bidimensional) as defined by the RANO criteria, with a minimum measurement of 1 cm in longest diameter on MRI performed within 21 days of first dose of acalabrutinib; MRI must have been obtained \u22654 weeks after any salvage surgery after first or second relapse. Stable or decreasing dose of corticosteroids \u22655 days before baseline MRI (at study entry). On a stable dose of any required therapy (such as anticonvulsant medication for subjects to be enrolled into the Phase 1b portion), for \u22653 weeks before the first dose of acalabrutinib. Eastern Cooperative Oncology Group (ECOG) performance status of \u22642. Life expectancy \u2265 12 weeks. Completion of all prior anticancer therapy before first ACP-196 dose. Need to have recovered (i.e., Grade \u22641 or baseline) from AEs associated with prior cancer therapy. Note: Subjects with Grade \u22642 neuropathy or Grade 2 alopecia are an exception, and may qualify for the study.",
-      "answer_exact_match": false,
+      "answer": "Measurable disease (bidimensional) as defined by the RANO criteria, with a minimum measurement of 1 cm in longest diameter on MRI performed within 21 days of first dose of acalabrutinib; MRI must have been obtained \u22654 weeks after any salvage surgery after first or second relapse.",
+      "answer_exact_match": true,
       "citation_match": true,
       "citations": [
         {
@@ -72,7 +72,7 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "1. Patient who has had a VTE in the 12 months preceding the diagnosis of cancer, 2. Patient on low molecular weight heparins, standard unfractionated heparins and anti-vitamin K2, 3. Women who are pregnant, likely to become pregnant or who are breast-feeding, 4. Persons deprived of their liberty, under court protection, under curators or under the authority of a guardian, 5. Unable to undergo medical monitoring of the trial for geographical, social or psychological reasons.",
+      "answer": "low molecular weight heparins, standard unfractionated heparins and anti-vitamin K2",
       "answer_exact_match": false,
       "citation_match": true,
       "citations": [
@@ -103,7 +103,7 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "1. Subject is between 18 and 89 years of age. 2. Subject has radiologically-diagnosed or suspected WHO Grade II-IV glioma based on physician review or conformance with published WHO criteria as evaluated by the PI\\*. 3. Subject is treatment-na\u00efve with the exception of previous biopsy for the above condition. 4. Subject is planning to undergo surgical resection and biopsy of their brain tumor. 5. Subject has sufficient tissue so that the study team is able to acquire at least 2 biopsy samples during resection. 6. Subject is able to read and write in English. 7. Subject is able to lay supine for up to 80 minutes. 8. Subject is able to hold still during MRI procedures. 9. Subject or their LAR has signed the consent form for participation in the study.",
+      "answer": "5. Subject has sufficient tissue so that the study team is able to acquire at least 2 biopsy samples during resection.",
       "answer_exact_match": false,
       "citation_match": true,
       "citations": [
@@ -134,8 +134,8 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "A Multi-Arm, Open Label, Phase II Trial of WP1066 and Radiation Therapy in Patients With Newly Diagnosed Glioblastoma",
-      "answer_exact_match": false,
+      "answer": "WP1066",
+      "answer_exact_match": true,
       "citation_match": true,
       "citations": [
         {
@@ -176,7 +176,7 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "Patients must have met applicable eligibility criteria in the Master MATCH Protocol EAY131/ NCI-2015-00054 prior to registration to treatment subprotocol Patients must fulfill all eligibility criteria of MATCH Master Protocol at the time of registration to treatment step (Step 1, 3, 5, 7) Patients must have a BRAF non-V600 mutation or BRAF fusion, or another BRAF aberration, as determined via the MATCH Master Protocol Patients with BRAF V600E/K/R/D mutations are excluded Patients must have an electrocardiogram (ECG) within 8 weeks prior to treatment assignment and must have no clinically important abnormalities in rhythm, conduction or morphology of resting ECG (e.g. complete left bundle branch block, third degree heart block) Patients must not have known immediate or delayed hypersensitivity reaction or idiosyncrasy to drugs chemically related to BVD-523FB (ulixertinib), dimethyl sulfoxide (DMSO), or excipients Patients must not have a left ventricular ejection fraction (LVEF) \\< the institutional lower limit of normal (LLN) or \\< 50% (whichever is higher) Patients must not have prior use of MEK or ERK 1/2 inhibitors Patients must not have a history of retinal vein occlusion (RVO) or central serous retinopathy. Patients with visible retinal pathology as assessed by ophthalmologic exam that is considered a risk factor for retinal vein thrombosis or central serous retinopathy will be excluded Intraocular pressure is \u2264 21mm Hg as measured by tonography. Patients diagnosed with glaucoma within 1 month prior to Step 1 registration are excluded Patients must not have leptomeningeal metastases or spinal cord compression due to disease Patients must not have primary malignancy of the central nervous system",
+      "answer": "BRAF non-V600 mutation or BRAF fusion, or another BRAF aberration. Patients with BRAF V600E/K/R/D mutations are excluded.",
       "answer_exact_match": false,
       "citation_match": true,
       "citations": [
@@ -207,8 +207,8 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "Ability to understand and sign the informed consent document Men or women \u226518 years and \u226470 years Newly-diagnosed GB confirmed by biopsy or by resection in the 4-7 weeks before being registered in the trial. Patients must have at least 15 slides without staining or a tissue block (frozen or paraffin-embedded) available from a previous biopsy or surgery (tumour sample previously archived). Patients must have recovered from previous surgeries (time between surgery and inclusion in the study: 6 weeks). Karnofsky Index \u226560%. Adequate bone marrow reserve: haemoglobin \u226510 g/dL, WBC \\>3,000/mcL, absolute neutrophil count (ANC) \u22651,500 cells/\u03bcL, platelets \u2265100,000 cells/\u03bcL. Adequate liver function: Bilirubin \\<1.5 times the upper limit of normal (ULN); AST \u22642.5 x ULN Creatinine clearance \\>60 ml/min/1.73 m2. The study treatment's effects on the development of the human foetus are not known. For this reason, women of childbearing age and men must agree to use a suitable birth control method (hormonal, barrier, abstinence or surgical sterilisation) before inclusion in the study, for the duration of the study and for at least 3 months after completing the trial treatment. The definition of an effective method of birth control is based on the judgement of the principal investigator or their designee. If a woman is pregnant or there is suspicion that she might be pregnant while participating in the study, she must inform the trial doctor immediately. All women of childbearing age should have a negative pregnancy test (serum/urine) in the 2 weeks prior to the beginning of treatment.",
-      "answer_exact_match": false,
+      "answer": "Patients must have at least 15 slides without staining or a tissue block (frozen or paraffin-embedded) available from a previous biopsy or surgery (tumour sample previously archived).",
+      "answer_exact_match": true,
       "citation_match": true,
       "citations": [
         {
@@ -306,8 +306,8 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "1. Newly-diagnosed, histologically proven, intracranial glioblastoma with maximal safe resection. Biopsy alone is expected if resection is not possible. MGMT promoter methylation status must be tested for all patients. 2. History and physical examination, including neurological examination, within 14 days prior to randomization. 3. Age \u2265 65 \\& KPS of 60 - 70 4. Stable or decreasing dose of corticosteroids for at least 14 days prior to randomization. 5. Laboratory evaluation within 7 days prior to randomization, with adequate function as defined below: 1. ANC \u2265 1.5 x 109/L 2. Platelets \u2265 100 x 109/L 3. Estimated Glomerular Filtration Rate (eGFR) \\> 59 4. Total serum bilirubin \u2264 30 umol/L (ie \u2264 1.5 times ULN) 5. ALT \\< 150 U/L (ie \\< 3 times ULN) 6. AST \\< 120 U/L (ie \\< 3 times ULN) 7. Alkaline phosphatase \\< 390 U/L (ie \\< 3 times ULN) 6. Patients must sign a study-specific informed consent prior to study registration. 7. Patients of childbearing / reproductive potential should use highly effective birth control methods, as defined by the investigator, during the study treatment period and for a period of 6 months after the last dose of study drug. A highly effective method of birth control is defined as those that result in low failure rate (i.e. less than 1% per year) when used consistently and correctly. Note: abstinence is acceptable if this is established and preferred contraception for the patient and is accepted as a local standard. 1. This will apply for male patients only and their female partner if of child bearing potential. 2. Effective contraception should also be used by male patients taking temozolomide. Men being treated with temozolomide are advised not to father a child during or up to 6 months after discontinuation of treatment (male patients). 8. Male patients should agree to not donate sperm during the study treatment and for six months post treatment completion.",
-      "answer_exact_match": false,
+      "answer": "MGMT promoter methylation status must be tested for all patients.",
+      "answer_exact_match": true,
       "citation_match": true,
       "citations": [
         {
@@ -317,13 +317,13 @@ Citation coverage: 21/21 (100.0%)
         },
         {
           "nct_id": "NCT04765514",
-          "section": "title",
-          "text_snippet": "A Randomized Controlled Trial of Chemo-Radiotherapy Versus Biomarker-Guided Therapy for Elderly and Frail Patients With Newly Diagnosed Glioblastoma"
+          "section": "interventions",
+          "text_snippet": "OTHER: Biomarker based treatment (Temozolomide monotherapy or Radiotherapy monotherapy) COMBINATION_PRODUCT: Chemo-Radiotherapy consisting of 40 Gy in 15 daily fractions with concurrent temozolomide."
         },
         {
           "nct_id": "NCT04765514",
-          "section": "eligibility.exclusion",
-          "text_snippet": "1. Recurrent malignant gliomas 2. Prior invasive malignancy (except for non-melanomatous skin cancer) unless disease free for \u2265 3 years. 3. Prior head or neck RT (except for T1 glottic cancer), or systemic therapy precluding delivery of concurrent and adjuvant temozolomide 4. Treatment with any other therapeutic clinical protocol within 30 days prior to study registration or during participation in the study. 5. Severe, active co-morbidity, defined as follows: 1. Unstable angina and/or congestive heart failure requiring hospitalization 2. Transmural myocardial infarction within the last 6 months 3. Acute bacterial or fungal infection requiring intravenous antibiotics at the time of study registration 4. Any severe, active co-morbidity precluding delivery of temozolomide. 5. History of hypersensitivity reaction to temozolomide components or to dacarbazine. 6. Active HBV infection"
+          "section": "title",
+          "text_snippet": "A Randomized Controlled Trial of Chemo-Radiotherapy Versus Biomarker-Guided Therapy for Elderly and Frail Patients With Newly Diagnosed Glioblastoma"
         }
       ],
       "expected_sections": [
@@ -337,8 +337,8 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "I don\u2019t know.",
-      "answer_exact_match": false,
+      "answer": "Hypoxia mapping",
+      "answer_exact_match": true,
       "citation_match": true,
       "citations": [
         {
@@ -368,8 +368,8 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "DRUG: Gliolan RADIATION: Radiodynamic therapy",
-      "answer_exact_match": false,
+      "answer": "Gliolan",
+      "answer_exact_match": true,
       "citation_match": true,
       "citations": [
         {
@@ -400,7 +400,7 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "RADIATION: hypofractionated postoperative radiotherapy RADIATION: Conventionally fractionated postoperative radiotherapy",
+      "answer": "hypofractionated postoperative radiotherapy",
       "answer_exact_match": false,
       "citation_match": true,
       "citations": [
@@ -431,8 +431,8 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "{'measure': 'Safety of the intervention', 'time_frame': 'Four Months'} {'measure': 'Safety of the intervention', 'time_frame': 'Four months'}",
-      "answer_exact_match": false,
+      "answer": "Four Months",
+      "answer_exact_match": true,
       "citation_match": true,
       "citations": [
         {
@@ -463,8 +463,8 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "Subject must understand and voluntarily sign an ICF prior to any study-related assessments/procedures being conducted Patients capable of taking oral medication Subject is willing and able to adhere to the study visit schedule and other protocol requirements. Histological diagnosis of grade 2 or grade 3 meningioma according to the WHO 2021 classification Radiologically documented progression of any existing tumor with an estimated planar growth \\>25% (bidirectional) in the last 12 months or appearance of new lesions Ineligible for further surgery and/or radiotherapy at least 1 Measurable lesion (minimum 10 x 10mm) on baseline MRI Eastern Cooperative Oncology Group performance status (ECOG PS) of 0 to 1 (or KPS \u00b370) Male or female \u2265 18 years of age Subjects must have life expectancy of at least 6 months Paraffin-embedded tumor tissue available (mandatory) Dosage of dexamethasone or equivalent steroid within 7 days prior the randomization \u22644mg/die Stable or decreasing dosage of steroids for 7 days prior to the randomization. Adequate cardiac function and adequate liver, renal and hematological function Subject must have the following laboratory values at screening within 14 days before starting Regorafenib: Absolute neutrophil count (ANC) \u2265 1.5 x 109/L without growth factor support for 7 days (14 days if subject received pegfilgrastim). Hemoglobin (Hgb) \u226510 g/dL Platelet count (plt) \u2265100x 109/L Serum potassium concentration within normal range, or correctable with supplements Serum glutamic oxaloacetic transaminase (SGOT)/aspartate aminotransferase (AST) and serum glutamate pyruvic transaminase (SGPT)/alanine aminotransferase (ALT) \u2264 3.0 x Upper Limit of Normal (ULN). Serum total bilirubin \u2264 1.5 x ULN Serum creatinine \u2264 1.5 x ULN or measured glomerular filtration rate (GFR) \u2265 50 mL/min/1.73 m2 using an exogenous filtration marker such as iohexol, inulin, 51Cr EDTA or 1125 iothalamate, or creatinine clearance of \u2265 50 mL/min using Cockroft-Gault equation. Serum albumin \\> 3.5 g/dL PT (or INR) and APTT within normal range For women who are not postmenopausal (i.e., \\< 2 years after last menstruation) or surgically sterile (absence of ovaries and/or uterus) and who are sexually active: agreement to use an adequate method of contraception (oral contraceptives, intrauterine contraceptive device, or barrier method of contraception in conjunction with spermicidal jelly) during the Treatment period and for at least 6 months after the last dose of study drug. For male patients who are partners of premenopausal women: agreement to use a barrier method of contraception during the Treatment period and for at least 6 months after the last dose of study drug. Participants with type I diabetes mellitus, hypothyroidism only requiring hormone replacement, skin disorders (such as vitiligo, psoriasis, or alopecia) not requiring systemic treatment, or conditions not expected to recur in the absence of an external trigger are permitted to participate. 19\\. Patients with measurable, progressive meningioma who received radiation therapy are potentially eligible but need to show evidence of progression at least 24 weeks from completion of radiation therapy.",
-      "answer_exact_match": false,
+      "answer": "Histological diagnosis of grade 2 or grade 3 meningioma according to the WHO 2021 classification",
+      "answer_exact_match": true,
       "citation_match": true,
       "citations": [
         {
@@ -540,8 +540,8 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "Must have magnetic resonance imaging (MRI) features consistent with and suspicious for malignant glioma. This will be Part A - Tissue (biopsy) and Rickham catheter placement. Must have histologically or cytologically confirmed glioblastoma multiforme prior to administration of the DRI \u03b3\u03b4 T cell injection. This will be Part B - Screening and Study Treatment. Prior therapy: Must have completed a standard temozolomide and radiotherapy treatment as described in Part A and be eligible to receive maintenance therapy with temozolomide (consistent with NCCN guidelines for newly diagnosed GBM and maintenance therapy). Age \u226518 years\u03a6: Because no dosing or adverse event data are currently available on the use of \u03b3\u03b4 T cells in patients \\<18 years of age, children are excluded from this study but will be eligible for future pediatric Phase I single-agent trials. Karnofsky Performance Status \u226570% Life expectancy of greater than 12 weeks Patients must have organ and marrow function as defined below: 1. leukocytes \\>3,000/\u00b5l 2. absolute neutrophil count \\>1,500/\u00b5l 3. Hgb greater than or equal to 9.0 g/dL 4. platelets \\>100,000/\u00b5l 5. total bilirubin within normal institutional limits 6. AST (SGOT)/ALT (SGPT) \\<2.5 X institutional upper limit of normal 7. Normal electrolyte levels including sodium, calcium, potassium, chloride and magnesium 8. INR/PT/aPTT \u22641.5xULN 9. Normal EKG; if abnormal, NCS 10. Normal blood presure as adjusted for age Creatinine within normal institutional limits or if higher than the normal range, calculated creatinine clearance (CrCl) must be \u2265 50 mL/min/1.73 m2 (e.g., by Cockcroft-Gault formula); actual body weight must be used for CrCl unless body mass index (BMI) is \\> 30 kg/m2, in which case, lean body weight must be used",
-      "answer_exact_match": false,
+      "answer": "Must have histologically or cytologically confirmed glioblastoma multiforme prior to administration of the DRI \u03b3\u03b4 T cell injection.",
+      "answer_exact_match": true,
       "citation_match": true,
       "citations": [
         {
@@ -576,7 +576,7 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "DIAGNOSTIC_TEST: 18F-GE-180 PET DIAGNOSTIC_TEST: Advanced MRI OTHER: Collection of hematopoietic stem cells OTHER: Blood withdrawal OTHER: Collection of Cancer Stem Cells",
+      "answer": "18F-GE-180",
       "answer_exact_match": false,
       "citation_match": true,
       "citations": [
@@ -608,7 +608,7 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "Patients must have met applicable eligibility criteria in the Master MATCH Protocol EAY131/ NCI-2015-00054 prior to registration to treatment subprotocol. Patients must fulfill all eligibility criteria outlined in MATCH Master Protocol at the time of registration to treatment step (Step 1, 3, 5, 7). Patients must have FGFR Amplification as determined via the MATCH Master Protocol. Patients must have an electrocardiogram (ECG) within 8 weeks prior to treatment assignment and must have no clinically important abnormalities in rhythm, conduction or morphology of resting ECG (e.g. complete left bundle branch block, third degree heart block). Patients must not have known hypersensitivity to JNJ-42756493 (erdafitinib) or compounds of similar chemical or biologic composition. Patients with current evidence of corneal or retinal disorder/keratopathy are excluded. Patients must not be currently using medications that can elevate serum phosphorous and/or calcium levels. Medications that increase serum calcium should be avoided. Over the counter calcium supplements, antacids that contain calcium (Tums) and vitamin D supplements (cholecalciferol and ergocalciferol) should be avoided. Prescription medications including lithium, hydrochlorothiazide and chlorthalidone must be used with caution. Medications that increase serum phosphate should be avoided. Over the counter laxatives that contain phosphate such as Fleets oral or Fleets enema and Miralax should be avoided. Patients with a history of hyperphosphatemia will be excluded. Patients may not have received strong inhibitors or potent inducers of CYP3A within 2 weeks before the first dose of study treatment. Patients with inability to discontinue treatment with a strong CYP3A4 and/or CYP2C9 inhibitor or inducer prior to start of treatment are excluded. Patients who have previously received treatment with a FGFR-targeted inhibitor are excluded. Such inhibitors include AZD4547, BGJ398, BAY1163877 and LY2874455). Prior non-selective FGFR inhibitor treatment (e.g. Pazopanib, dovitinib, ponatinib, brivanib, lucitanib, lenvatinib) are allowed. Patients must not have any history of or current evidence of renal or endocrine alterations of calcium/phosphate homeostasis, or history of or current evidence of extensive tissue calcification (by evaluation of the clinician), including but not limited to, the soft tissue, kidneys, intestine, myocardium and lung with the exception of calcified lymph nodes and asymptomatic vascular calcification per investigators' judgment. Patients with transitional cell carcinoma of the bladder and /or urothelial tract are not eligible. These patients are encouraged to enroll in the ongoing disease-specific studies. Patients with impaired renal function (glomerular filtration rate \\[GFR\\] \\< 60 mL/min) are excluded. GFR should be assessed by direct measurement (i.e., creatinine clearance or ethyldediaminetetraacetate) or, if not available, by calculation from serum/plasma creatinine (Cockcroft-Gault formula). Patients with persistent phosphate level \\> upper limit of normal (ULN) during screening (within 14 days of treatment and prior to cycle 1 day 1) and despite medical management are excluded. Patients with a history of or current uncontrolled cardiovascular disease as stated below are excluded: Unstable angina, myocardial infarction, or known congestive heart failure class II-IV within the preceding 12 months; cerebrovascular accident or transient ischemic attack within the preceding 3 months, pulmonary embolism within the preceding 2 months. Any of the following: sustained ventricular tachycardia, ventricular fibrillation, Torsades de Pointes, cardiac arrest, Mobitz II second degree heart block or third degree heart block; known presence of dilated, hypertrophic, or restrictive cardiomyopathy. Patients with impaired wound healing capacity defined as skin/decubitus ulcers, chronic leg ulcers, known gastric ulcers, or unhealed incisions are excluded. Female subjects (of child-bearing potential and sexually active) must use medically acceptable methods of birth control (hormonal or barrier method of birth control; abstinence) prior to study entry, for the duration of the study, and for 4 months after the last intake of study drug. Male subjects (with a partner of child-bearing potential) must use a condom with spermicide when sexually active and must not donate sperm from the first dose of study drug until 5 months after the last dose of study drug.",
+      "answer": "FGFR Amplification",
       "answer_exact_match": false,
       "citation_match": true,
       "citations": [
@@ -639,8 +639,8 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "Glioblastoma Performance status 3-4 (Karnofsky Performances of 60 or less)",
-      "answer_exact_match": false,
+      "answer": "Glioblastoma",
+      "answer_exact_match": true,
       "citation_match": true,
       "citations": [
         {
@@ -718,8 +718,8 @@ Citation coverage: 21/21 (100.0%)
   ],
   "metrics": {
     "answer_exact_match": {
-      "accuracy": 0.09523809523809523,
-      "correct": 2,
+      "accuracy": 0.6190476190476191,
+      "correct": 13,
       "total": 21
     },
     "citation_section_match": {
