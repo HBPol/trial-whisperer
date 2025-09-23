@@ -531,7 +531,13 @@ def call_llm_with_citations(query: str, chunks: List[dict]) -> Tuple[str, List[d
                         exc_info=True,
                     )
                     if attempt == max_attempts:
-                        break
+                        logger.error(
+                            "OpenAI provider unavailable after %s attempts; returning fallback response",
+                            max_attempts,
+                        )
+                        return provider_fallback, _select_citations(
+                            provider_fallback, bounded_chunks
+                        )
                     sleep_seconds = base_delay * (2 ** (attempt - 1))
                     time.sleep(sleep_seconds)
                     continue
@@ -541,14 +547,6 @@ def call_llm_with_citations(query: str, chunks: List[dict]) -> Tuple[str, List[d
                 ) from exc
             else:
                 return answer, _select_citations(answer, bounded_chunks)
-
-            logger.error(
-                "OpenAI provider unavailable after %s attempts; returning fallback response",
-                max_attempts,
-            )
-            return provider_fallback, _select_citations(
-                provider_fallback, bounded_chunks
-            )
 
     if settings.llm_provider == "gemini" and settings.llm_api_key:
         provider_errors = _get_gemini_error_types()
@@ -585,7 +583,13 @@ def call_llm_with_citations(query: str, chunks: List[dict]) -> Tuple[str, List[d
                         exc_info=True,
                     )
                     if attempt == max_attempts:
-                        break
+                        logger.error(
+                            "Gemini provider unavailable after %s attempts; returning fallback response",
+                            max_attempts,
+                        )
+                        return provider_fallback, _select_citations(
+                            provider_fallback, bounded_chunks
+                        )
                     sleep_seconds = base_delay * (2 ** (attempt - 1))
                     time.sleep(sleep_seconds)
                     continue
@@ -595,12 +599,6 @@ def call_llm_with_citations(query: str, chunks: List[dict]) -> Tuple[str, List[d
                 ) from exc
             else:
                 return answer, _select_citations(answer, bounded_chunks)
-
-        logger.error(
-            "Gemini provider unavailable after %s attempts; returning fallback response",
-            max_attempts,
-        )
-        return provider_fallback, _select_citations(provider_fallback, bounded_chunks)
 
         # Fallback when no LLM provider is configured
     answer = demo_answer
