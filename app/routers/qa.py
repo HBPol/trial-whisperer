@@ -26,7 +26,8 @@ async def ask(body: AskRequest):
     cleaned_answer = clean_answer_text(answer)
     alignment_context = cits or chunks
     final_answer = (
-        align_answer_to_context(cleaned_answer, alignment_context) or cleaned_answer
+        align_answer_to_context(cleaned_answer, alignment_context, query=body.query)
+        or cleaned_answer
     )
     citations = [
         Citation(nct_id=c["nct_id"], section=c["section"], text_snippet=c["text"])

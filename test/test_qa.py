@@ -353,6 +353,54 @@ def test_alignment_captures_fgfr_requirement(monkeypatch):
     assert data["answer"] == expected
 
 
+def test_alignment_prefers_caregiver_clause(monkeypatch):
+    sample_chunk = {
+        "nct_id": "NCT06989086",
+        "section": "Eligibility.Inclusion",
+        "text": (
+            "Patients: Self-report a diagnosis of a primary malignant brain tumor "
+            "(grade II-IV) >2 weeks post-cranial resection or biopsy Elevated Fear of "
+            "Recurrence Distress Rating Primarily English speaking >= 18 years of age "
+            "at the time of enrollment Caregivers: nonprofessional caregiver to a "
+            "patient with a primary malignant brain tumor (grade II-IV) Elevated Fear "
+            "of Recurrence Distress Rating Primarily English speaking >= 18 years of "
+            "age at the time of enrollment"
+        ),
+    }
+
+    def _fake_retrieve_chunks(query, nct_id):
+        return [sample_chunk]
+
+    def _fake_call_llm(query, chunks):
+        answer = (
+            "Caregivers can enroll if they are a nonprofessional caregiver to a patient "
+            "with a primary malignant brain tumor (grade II-IV), have an Elevated Fear "
+            "of Recurrence Distress Rating, are primarily English speaking, and are 18 "
+            "years of age at the time of enrollment."
+        )
+        return answer, [sample_chunk]
+
+    monkeypatch.setattr(qa, "retrieve_chunks", _fake_retrieve_chunks)
+    monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
+
+    response = client.post(
+        "/ask/",
+        json={
+            "query": "In trial NCT06989086, who can enroll as caregivers?",
+            "nct_id": "NCT06989086",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    expected = (
+        "Caregivers: nonprofessional caregiver to a patient with a primary malignant "
+        "brain tumor (grade II-IV) Elevated Fear of Recurrence Distress Rating "
+        "Primarily English speaking >= 18 years of age at the time of enrollment"
+    )
+    assert data["answer"] == expected
+
+
 def test_citation_selector_covers_late_sections():
     context_chunks = [
         {

@@ -1,12 +1,12 @@
 Evaluated 21 examples
-Answer exact match: 12/21 (57.1%)
+Answer exact match: 11/21 (52.4%)
 Citation coverage: 21/21 (100.0%)
 {
   "dataset": "eval/testset.sample.jsonl",
   "examples": [
     {
-      "answer": "Have an Eastern Cooperative Oncology Group (ECOG) Performance Status of 0 to 1 assessed within 7 days before randomization.",
-      "answer_exact_match": true,
+      "answer": "0 to 1",
+      "answer_exact_match": false,
       "citation_match": true,
       "citations": [
         {
@@ -36,8 +36,8 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "Measurable disease (bidimensional) as defined by the RANO criteria, with a minimum measurement of 1 cm in longest diameter on MRI performed within 21 days of first dose of acalabrutinib; MRI must have been obtained \u22654 weeks after any salvage surgery after first or second relapse.",
-      "answer_exact_match": true,
+      "answer": "Measurable disease (bidimensional) as defined by the RANO criteria, with a minimum measurement of 1 cm in longest diameter on MRI performed within 21 days of first dose of acalabrutinib;",
+      "answer_exact_match": false,
       "citation_match": true,
       "citations": [
         {
@@ -176,7 +176,7 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "BRAF non-V600 mutation or BRAF fusion, or another BRAF aberration, as determined via the MATCH Master Protocol.",
+      "answer": "A BRAF non-V600 mutation or BRAF fusion, or another BRAF aberration.",
       "answer_exact_match": false,
       "citation_match": true,
       "citations": [
@@ -269,7 +269,7 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "Caregivers can enroll if they are a nonprofessional caregiver to a patient with a primary malignant brain tumor (grade II-IV), have an elevated Fear of Recurrence Distress Rating, are primarily English speaking, and are 18 years of age or older at the time of enrollment.",
+      "answer": "Caregivers: nonprofessional caregiver to a patient with a primary malignant brain tumor (grade II-IV) Elevated Fear of Recurrence Distress Rating Primarily English speaking \\>/= 18 years of age at the time of enrollment",
       "answer_exact_match": false,
       "citation_match": true,
       "citations": [
@@ -306,8 +306,8 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "MGMT promoter methylation status.",
-      "answer_exact_match": false,
+      "answer": "MGMT promoter methylation status must be tested for all patients.",
+      "answer_exact_match": true,
       "citation_match": true,
       "citations": [
         {
@@ -317,13 +317,13 @@ Citation coverage: 21/21 (100.0%)
         },
         {
           "nct_id": "NCT04765514",
-          "section": "interventions",
-          "text_snippet": "OTHER: Biomarker based treatment (Temozolomide monotherapy or Radiotherapy monotherapy) COMBINATION_PRODUCT: Chemo-Radiotherapy consisting of 40 Gy in 15 daily fractions with concurrent temozolomide."
+          "section": "title",
+          "text_snippet": "A Randomized Controlled Trial of Chemo-Radiotherapy Versus Biomarker-Guided Therapy for Elderly and Frail Patients With Newly Diagnosed Glioblastoma"
         },
         {
           "nct_id": "NCT04765514",
-          "section": "title",
-          "text_snippet": "A Randomized Controlled Trial of Chemo-Radiotherapy Versus Biomarker-Guided Therapy for Elderly and Frail Patients With Newly Diagnosed Glioblastoma"
+          "section": "eligibility.exclusion",
+          "text_snippet": "1. Recurrent malignant gliomas 2. Prior invasive malignancy (except for non-melanomatous skin cancer) unless disease free for \u2265 3 years. 3. Prior head or neck RT (except for T1 glottic cancer), or systemic therapy precluding delivery of concurrent and adjuvant temozolomide 4. Treatment with any other therapeutic clinical protocol within 30 days prior to study registration or during participation in the study. 5. Severe, active co-morbidity, defined as follows: 1. Unstable angina and/or congestive heart failure requiring hospitalization 2. Transmural myocardial infarction within the last 6 months 3. Acute bacterial or fungal infection requiring intravenous antibiotics at the time of study registration 4. Any severe, active co-morbidity precluding delivery of temozolomide. 5. History of hypersensitivity reaction to temozolomide components or to dacarbazine. 6. Active HBV infection"
         }
       ],
       "expected_sections": [
@@ -530,7 +530,7 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "histologically or cytologically confirmed glioblastoma multiforme",
+      "answer": "Histologically or cytologically confirmed glioblastoma multiforme.",
       "answer_exact_match": false,
       "citation_match": true,
       "citations": [
@@ -708,8 +708,8 @@ Citation coverage: 21/21 (100.0%)
   ],
   "metrics": {
     "answer_exact_match": {
-      "accuracy": 0.5714285714285714,
-      "correct": 12,
+      "accuracy": 0.5238095238095238,
+      "correct": 11,
       "total": 21
     },
     "citation_section_match": {

@@ -31,6 +31,7 @@ DEFAULT_QA_SYSTEM_PROMPT = (
 _CITATION_MARKER_PATTERN = re.compile(r"\s*(?:\(\s*\d+\s*\)|\[\s*\d+\s*\])")
 _KEYWORD_PATTERN = re.compile(r"[a-z0-9]+", re.IGNORECASE)
 _FRAGMENT_SPLIT_PATTERN = re.compile(r"[\n;]+|(?<!\d)\.(?!\d)")
+_LABEL_SEGMENT_PATTERN = re.compile(r"([A-Z][A-Za-z0-9 _/\-]{1,30}:)")
 _ANSWER_LEADING_PATTERNS = [
     re.compile(r"^\s*(?:answer|final answer)\s*[:\-]\s*", re.IGNORECASE),
     re.compile(
@@ -218,7 +219,12 @@ def _extract_answer_fragments(answer: str) -> List[str]:
     return fragments
 
 
-def align_answer_to_context(answer: str, context_chunks: List[dict]) -> str:
+def align_answer_to_context(
+    answer: str,
+    context_chunks: List[dict],
+    *,
+    query: Optional[str] = None,
+) -> str:
     """Return the closest matching chunk text for ``answer`` when available."""
 
     if not answer:
@@ -243,7 +249,9 @@ def align_answer_to_context(answer: str, context_chunks: List[dict]) -> str:
     fragments = _extract_answer_fragments(cleaned_reference)
     answer_tokens = _chunk_keyword_tokens(cleaned_reference)
     answer_token_set = set(answer_tokens)
-    if not (normalized_answer or fragments or answer_token_set):
+    query_tokens = _chunk_keyword_tokens(query) if query else Counter()
+    query_token_set = set(query_tokens)
+    if not (normalized_answer or fragments or answer_token_set or query_token_set):
         return stripped_answer
 
     reference_variants: List[str] = []
@@ -271,6 +279,8 @@ def align_answer_to_context(answer: str, context_chunks: List[dict]) -> str:
         "subjects",
         "participant",
         "participants",
+        "caregiver",
+        "caregivers",
         "cohort",
         "cohorts",
         "arm",
@@ -292,10 +302,48 @@ def align_answer_to_context(answer: str, context_chunks: List[dict]) -> str:
         words = lower.split()
         if not words:
             return False
-        first_word = words[0].rstrip("'s")
+        first_word = words[0].rstrip(":'s")
         return first_word in allowed_prefix_roots
 
     total_token_count = sum(answer_tokens.values())
+    total_query_token_count = sum(query_tokens.values())
+
+    def _split_label_segments(text: str) -> List[str]:
+        if not text or ":" not in text:
+            return []
+
+        segments: List[str] = []
+        positions: List[int] = []
+
+        for match in _LABEL_SEGMENT_PATTERN.finditer(text):
+            prefix = match.group(1)
+            if not prefix:
+                continue
+            if not _is_valid_prefix(prefix):
+                continue
+            start = match.start()
+            if start > 0:
+                preceding = text[start - 1]
+                if preceding not in " \t\r\n;,-":
+                    continue
+            positions.append(start)
+
+        if len(positions) <= 1:
+            return []
+
+        first_start = positions[0]
+        if first_start > 0:
+            leading_segment = text[:first_start].strip()
+            if leading_segment:
+                segments.append(leading_segment)
+
+        for idx, start in enumerate(positions):
+            end = positions[idx + 1] if idx + 1 < len(positions) else len(text)
+            candidate = text[start:end].strip()
+            if candidate:
+                segments.append(candidate)
+
+        return segments
 
     def _evaluate_candidate(candidate_text: str):
         candidate_stripped = candidate_text.strip()
@@ -317,6 +365,11 @@ def align_answer_to_context(answer: str, context_chunks: List[dict]) -> str:
             for token, count in answer_tokens.items()
         )
         unique_overlap = len(answer_token_set & chunk_token_set)
+        query_token_overlap = sum(
+            min(count, chunk_tokens.get(token, 0))
+            for token, count in query_tokens.items()
+        )
+        query_unique_overlap = len(query_token_set & chunk_token_set)
         fragment_matches = sum(
             1 for fragment in fragments if fragment and fragment in normalized_candidate
         )
@@ -324,14 +377,28 @@ def align_answer_to_context(answer: str, context_chunks: List[dict]) -> str:
             bool(normalized_answer) and normalized_answer in normalized_candidate
         )
 
-        if not span_match and fragment_matches == 0 and unique_overlap <= 1:
+        if (
+            not span_match
+            and fragment_matches == 0
+            and unique_overlap <= 1
+            and query_unique_overlap == 0
+        ):
             return None
 
         coverage_ratio = 0.0
         if total_token_count:
             coverage_ratio = token_overlap / total_token_count
 
-        if not span_match and fragment_matches == 0 and coverage_ratio < 0.4:
+        query_coverage_ratio = 0.0
+        if total_query_token_count:
+            query_coverage_ratio = query_token_overlap / total_query_token_count
+
+        if (
+            not span_match
+            and fragment_matches == 0
+            and coverage_ratio < 0.4
+            and query_coverage_ratio < 0.4
+        ):
             return None
 
         total_candidate_tokens = sum(chunk_tokens.values())
@@ -348,6 +415,8 @@ def align_answer_to_context(answer: str, context_chunks: List[dict]) -> str:
             fragment_matches,
             unique_overlap,
             token_overlap,
+            query_unique_overlap,
+            query_token_overlap,
             -abs(candidate_length - reference_length),
             -candidate_length,
         )
@@ -359,6 +428,9 @@ def align_answer_to_context(answer: str, context_chunks: List[dict]) -> str:
             "coverage_ratio": coverage_ratio,
             "token_overlap": token_overlap,
             "unique_overlap": unique_overlap,
+            "query_token_overlap": query_token_overlap,
+            "query_unique_overlap": query_unique_overlap,
+            "query_coverage_ratio": query_coverage_ratio,
             "candidate_fraction": candidate_fraction,
             "additional_token_count": additional_token_count,
             "additional_unique_tokens": additional_unique_tokens,
@@ -390,11 +462,13 @@ def align_answer_to_context(answer: str, context_chunks: List[dict]) -> str:
         return cleaned_candidate.strip()
 
     baseline_eval = _evaluate_candidate(stripped_answer)
-    baseline_score: Tuple[int, int, int, int, int, int]
+    baseline_score: Tuple[int, int, int, int, int, int, int, int]
     if baseline_eval:
         baseline_score = tuple(baseline_eval["score"])
     else:
         baseline_score = (
+            0,
+            0,
             0,
             0,
             0,
@@ -410,6 +484,33 @@ def align_answer_to_context(answer: str, context_chunks: List[dict]) -> str:
     seen_candidates = {stripped_answer}
     fallback_fragment_eval = None
     fallback_eval = None
+    best_query_eval: Optional[Tuple[Tuple[Any, ...], dict]] = None
+
+    def _consider_query_candidate(
+        candidate_eval: dict, source_chunk: Optional[str] = None
+    ) -> None:
+        nonlocal best_query_eval
+        if not candidate_eval:
+            return
+        query_unique = candidate_eval.get("query_unique_overlap", 0)
+        query_tokens = candidate_eval.get("query_token_overlap", 0)
+        if not (query_unique or query_tokens):
+            return
+
+        candidate_copy = dict(candidate_eval)
+        if source_chunk and not candidate_copy.get("source_chunk"):
+            candidate_copy["source_chunk"] = source_chunk
+
+        query_score = (
+            query_unique,
+            query_tokens,
+            -candidate_copy.get("length", 0),
+            candidate_copy.get("coverage_ratio", 0.0),
+            candidate_copy.get("token_overlap", 0),
+        )
+
+        if best_query_eval is None or query_score > best_query_eval[0]:
+            best_query_eval = (query_score, candidate_copy)
 
     for chunk in context_chunks:
         text = chunk.get("text")
@@ -423,6 +524,7 @@ def align_answer_to_context(answer: str, context_chunks: List[dict]) -> str:
             seen_candidates.add(chunk_text)
             chunk_eval = _evaluate_candidate(chunk_text)
             if chunk_eval:
+                _consider_query_candidate(chunk_eval, chunk_text)
                 if chunk_eval["length"] <= reference_length:
                     if tuple(chunk_eval["score"]) > best_score:
                         best_candidate = chunk_eval["text"]
@@ -438,35 +540,70 @@ def align_answer_to_context(answer: str, context_chunks: List[dict]) -> str:
             fragment_text = fragment.strip()
             if not fragment_text:
                 continue
-            if fragment_text in seen_candidates:
-                continue
-            seen_candidates.add(fragment_text)
+            candidate_texts = [fragment_text]
+            label_segments = _split_label_segments(fragment_text)
+            for segment in label_segments:
+                if segment not in candidate_texts:
+                    candidate_texts.append(segment)
 
-            fragment_eval = _evaluate_candidate(fragment_text)
-            if not fragment_eval:
-                continue
+            for candidate_text in candidate_texts:
+                candidate_stripped = candidate_text.strip()
+                if not candidate_stripped:
+                    continue
+                if candidate_stripped in seen_candidates:
+                    continue
+                seen_candidates.add(candidate_stripped)
 
-            fragment_eval["source_chunk"] = chunk_text
+                fragment_eval = _evaluate_candidate(candidate_stripped)
+                if not fragment_eval:
+                    continue
 
-            if fragment_eval["length"] > reference_length:
-                if fallback_fragment_eval is None:
-                    fallback_fragment_eval = fragment_eval
-                elif tuple(fragment_eval["score"]) > tuple(
-                    fallback_fragment_eval["score"]
-                ):
-                    fallback_fragment_eval = fragment_eval
-                continue
+                fragment_eval["source_chunk"] = chunk_text
+                _consider_query_candidate(fragment_eval, chunk_text)
 
-            if tuple(fragment_eval["score"]) > best_score:
-                best_candidate = fragment_eval["text"]
-                best_score = tuple(fragment_eval["score"])
-                best_eval = fragment_eval
+                if fragment_eval["length"] > reference_length:
+                    if fallback_fragment_eval is None:
+                        fallback_fragment_eval = fragment_eval
+                    elif tuple(fragment_eval["score"]) > tuple(
+                        fallback_fragment_eval["score"]
+                    ):
+                        fallback_fragment_eval = fragment_eval
+                    continue
+
+                if tuple(fragment_eval["score"]) > best_score:
+                    best_candidate = fragment_eval["text"]
+                    best_score = tuple(fragment_eval["score"])
+                    best_eval = fragment_eval
 
     if best_candidate != stripped_answer:
         if best_eval and best_eval.get("source_chunk"):
             return _prepare_aligned_text(_restore_fragment_text(best_eval))
 
         return _prepare_aligned_text(best_candidate)
+
+    if best_query_eval and total_token_count >= 6:
+        _, query_eval = best_query_eval
+        coverage = query_eval.get("coverage_ratio", 0.0)
+        token_overlap = query_eval.get("token_overlap", 0)
+        length = query_eval.get("length", 0)
+        if total_token_count:
+            min_token_overlap = max(4, int(total_token_count * 0.4))
+        else:
+            min_token_overlap = 1
+        length_limit = max(
+            reference_length + 60,
+            int(reference_length * 1.5) if reference_length > 0 else 0,
+        )
+        if reference_length <= 0:
+            length_limit = length or 0
+
+        if coverage >= 0.5 or token_overlap >= min_token_overlap:
+            if not length or reference_length <= 0 or length <= length_limit:
+                selected_text = query_eval.get("text")
+                if selected_text:
+                    if query_eval.get("source_chunk"):
+                        return _prepare_aligned_text(_restore_fragment_text(query_eval))
+                    return _prepare_aligned_text(selected_text)
 
     def _should_expand(candidate_eval: dict) -> bool:
         total_candidate_tokens = candidate_eval.get("total_candidate_tokens", 0)
@@ -670,6 +807,8 @@ def align_answer_to_context(answer: str, context_chunks: List[dict]) -> str:
             candidate_eval = {
                 "text": prepared,
                 "score": (
+                    0,
+                    0,
                     0,
                     0,
                     0,
