@@ -4,6 +4,7 @@ from ..agents.tools import (
     align_answer_to_context,
     call_llm_with_citations,
     prepare_answer_text,
+    refine_answer_with_context,
 )
 from ..models.schemas import AskRequest, AskResponse, Citation
 from ..retrieval.search_client import retrieve_chunks
@@ -28,6 +29,12 @@ async def ask(body: AskRequest):
     final_answer = (
         align_answer_to_context(cleaned_answer, alignment_context, query=body.query)
         or cleaned_answer
+    )
+    final_answer = refine_answer_with_context(
+        final_answer,
+        alignment_context,
+        query=body.query,
+        original_answer=cleaned_answer,
     )
     citations = [
         Citation(nct_id=c["nct_id"], section=c["section"], text_snippet=c["text"])

@@ -78,6 +78,246 @@ _INLINE_PREFIX_SPLIT_PATTERN = re.compile(
     r"Cohort|Cohorts|Arm|Arms|Eligible|Must|Have|Has|Be|Is|Are)\b)"
 )
 
+_QUERY_STOPWORDS = {
+    "a",
+    "an",
+    "and",
+    "are",
+    "be",
+    "been",
+    "being",
+    "did",
+    "do",
+    "does",
+    "how",
+    "have",
+    "has",
+    "for",
+    "in",
+    "is",
+    "of",
+    "on",
+    "or",
+    "that",
+    "the",
+    "this",
+    "those",
+    "to",
+    "was",
+    "were",
+    "what",
+    "which",
+    "who",
+    "whom",
+    "why",
+    "whose",
+    "when",
+    "where",
+    "must",
+    "patient",
+    "patients",
+    "can",
+    "as",
+    "with",
+}
+
+_REQUIREMENT_NUMBER_PREFIX_PATTERN = re.compile(
+    r"^(?:\(?[0-9ivxlcdm]+\)?|[a-z])[\.)]\s+",
+    re.IGNORECASE,
+)
+_REQUIREMENT_BULLET_PREFIX_PATTERN = re.compile(r"^(?:[-\u2022•▪]+)\s+")
+_LABEL_SPLIT_PATTERN_STRICT = re.compile(r"[A-Z][A-Z0-9 /\-]{0,30}:")
+_LABEL_SPLIT_PATTERN_FLEX = re.compile(r"[A-Z][A-Za-z0-9 /\-]{0,30}:")
+
+
+def _get_label_segments(text: str) -> List[str]:
+    matches = list(_LABEL_SPLIT_PATTERN_STRICT.finditer(text))
+    if not matches:
+        matches = list(_LABEL_SPLIT_PATTERN_FLEX.finditer(text))
+    if not matches:
+        return []
+
+    segments: List[str] = []
+    for idx, match in enumerate(matches):
+        start = match.start()
+        end = matches[idx + 1].start() if idx + 1 < len(matches) else len(text)
+        segment = text[start:end].strip()
+        if segment:
+            segments.append(segment)
+
+    return segments
+
+
+def _find_requirement_start(text: str, index: int) -> int:
+    start = max(0, min(index, len(text)))
+    while start > 0:
+        ch = text[start - 1]
+        if ch in ".!?;\n":
+            break
+        start -= 1
+
+    length = len(text)
+    while start < length and text[start].isspace():
+        start += 1
+
+    prefix_segment = text[start:index]
+    match = re.match(r"(?:\(\d+\)|\d+[\.)])\s+", prefix_segment)
+    if match:
+        start += match.end()
+
+    return start
+
+
+def _find_requirement_end(text: str, index: int) -> int:
+    tail = text[index:]
+    if not tail:
+        return len(text)
+
+    first_char = tail[0]
+    if first_char in ".!?":
+        end = index + 1
+        while end < len(text) and text[end].isspace():
+            end += 1
+        return end
+
+    candidates: List[int] = []
+
+    list_boundary = re.search(r",\s*(?:\d+[\.)])", tail)
+    if list_boundary:
+        candidates.append(index + list_boundary.start())
+
+    label_boundary = re.search(r"\s+[A-Z][A-Z0-9 _/\-]{1,30}:", tail)
+    if label_boundary:
+        candidates.append(index + label_boundary.start())
+
+    semicolon_pos = tail.find(";")
+    while semicolon_pos != -1:
+        remainder = tail[semicolon_pos + 1 :]
+        if re.match(
+            r"\s*(?:\d+[\.)]|[A-Z][A-Za-z0-9 _/\-]{1,30}:)",
+            remainder,
+        ):
+            candidates.append(index + semicolon_pos + 1)
+            break
+        semicolon_pos = tail.find(";", semicolon_pos + 1)
+
+    for punct in (".", "!", "?"):
+        pos = tail.find(punct)
+        while pos != -1:
+            if punct == "." and pos + 1 < len(tail) and tail[pos + 1].isdigit():
+                pos = tail.find(punct, pos + 1)
+                continue
+            candidates.append(index + pos + 1)
+            break
+
+    newline_pos = tail.find("\n")
+    if newline_pos != -1:
+        candidates.append(index + newline_pos)
+
+    if not candidates:
+        end = len(text)
+    else:
+        end = min(candidates)
+
+    while end > index and text[end - 1].isspace():
+        end -= 1
+
+    return end
+
+
+def _strip_requirement_marker(text: str) -> str:
+    if not text:
+        return text
+
+    stripped = text.lstrip()
+    match = _REQUIREMENT_NUMBER_PREFIX_PATTERN.match(stripped)
+    if match:
+        stripped = stripped[match.end() :]
+    match = _REQUIREMENT_BULLET_PREFIX_PATTERN.match(stripped)
+    if match:
+        stripped = stripped[match.end() :]
+
+    return stripped.strip()
+
+
+def _find_fragment_span(text: str, fragment: str) -> Optional[Tuple[int, int]]:
+    if not text or not fragment:
+        return None
+
+    lowered_text = text.lower()
+    lowered_fragment = fragment.lower()
+    direct_index = lowered_text.find(lowered_fragment)
+    if direct_index != -1:
+        return direct_index, direct_index + len(fragment)
+
+    pattern = re.compile(
+        re.escape(lowered_fragment).replace("\\ ", r"\\s+"),
+        re.IGNORECASE,
+    )
+    match = pattern.search(lowered_text)
+    if match:
+        return match.start(), match.end()
+
+    return None
+
+
+def _select_best_segment_by_tokens(
+    segments: List[str], query_tokens: set[str], fragment_tokens: set[str]
+) -> Optional[str]:
+    if not segments:
+        return None
+
+    best_segment: Optional[str] = None
+    best_score = -1
+
+    for segment in segments:
+        tokens = set(_chunk_keyword_tokens(segment))
+        query_overlap = len(tokens & query_tokens) if query_tokens else 0
+        fragment_overlap = len(tokens & fragment_tokens) if fragment_tokens else 0
+        score = query_overlap * 2 + fragment_overlap
+        if score > best_score and (query_overlap or fragment_overlap):
+            best_score = score
+            best_segment = segment.strip()
+
+    return best_segment
+
+
+def _split_secondary_requirement_segment(segment: str) -> List[str]:
+    if not segment:
+        return []
+
+    match = _LABEL_SPLIT_PATTERN_STRICT.match(segment)
+    if not match:
+        match = _LABEL_SPLIT_PATTERN_FLEX.match(segment)
+    if not match:
+        return []
+
+    prefix_end = match.end()
+    remainder = segment[prefix_end:]
+    if not remainder:
+        return []
+
+    stripped_remainder = remainder.strip()
+    if not stripped_remainder:
+        return []
+
+    parts = [
+        part.strip()
+        for part in _SECONDARY_REQUIREMENT_SPLIT_PATTERN.split(stripped_remainder)
+        if part.strip()
+    ]
+    if len(parts) <= 1:
+        return []
+
+    split_segments: List[str] = []
+    first_segment = f"{segment[:prefix_end]} {parts[0]}".strip()
+    if first_segment:
+        split_segments.append(first_segment)
+
+    split_segments.extend(parts[1:])
+    return split_segments
+
+
 _FALLBACK_ANSWER_MARKERS = (
     "i don't know",
     "i do not know",
@@ -1488,6 +1728,219 @@ def _chunk_keyword_tokens(text: str) -> Counter[str]:
     if not tokens:
         return Counter()
     return Counter(tokens)
+
+
+def _extract_query_tokens(query: Optional[str]) -> set[str]:
+    if not query:
+        return set()
+
+    tokens = set(_chunk_keyword_tokens(query))
+    if not tokens:
+        return set()
+
+    return {token for token in tokens if token not in _QUERY_STOPWORDS}
+
+
+def _extract_requirement_segment(
+    text: str, match_start: int, match_end: int
+) -> Optional[str]:
+    clause_start = _find_requirement_start(text, match_start)
+    clause_end = _find_requirement_end(text, match_end)
+
+    if clause_end <= clause_start:
+        return None
+
+    candidate = text[clause_start:clause_end].strip()
+    if not candidate:
+        return None
+
+    candidate = _strip_requirement_marker(candidate)
+    if not candidate:
+        return None
+
+    if candidate.endswith(";"):
+        extended_end = _find_requirement_end(text, clause_end)
+        if extended_end > clause_end:
+            extended_candidate = text[clause_start:extended_end].strip()
+            extended_candidate = _strip_requirement_marker(extended_candidate)
+            if extended_candidate:
+                candidate = extended_candidate
+
+    return candidate
+
+
+def _trim_requirement_sentences(
+    candidate: str, fragment: str, query_tokens: set[str]
+) -> str:
+    if not candidate:
+        return candidate
+
+    sentences = [
+        sentence.strip()
+        for sentence in re.split(r"(?<=[.!?])\s+", candidate)
+        if sentence.strip()
+    ]
+    if len(sentences) <= 1:
+        return candidate.strip()
+
+    fragment_lower = fragment.lower()
+    kept: List[str] = []
+
+    for sentence in sentences:
+        lowered = sentence.lower()
+        tokens = set(_chunk_keyword_tokens(sentence))
+        if fragment_lower in lowered:
+            kept.append(sentence)
+            continue
+        if query_tokens and tokens & query_tokens:
+            kept.append(sentence)
+            continue
+        if kept:
+            break
+
+    if kept:
+        return " ".join(kept).strip()
+
+    return candidate.strip()
+
+
+def _expand_requirement_answer(
+    answer: str, context_chunks: List[dict], *, query: Optional[str] = None
+) -> str:
+    stripped = answer.strip()
+    if not stripped or not context_chunks:
+        return answer
+
+    base_length = len(stripped)
+    query_tokens = _extract_query_tokens(query)
+    fragment_tokens = set(_chunk_keyword_tokens(stripped))
+    total_fragment_tokens = len(fragment_tokens)
+    best_candidate: Optional[str] = None
+    best_score = -1
+
+    for chunk in context_chunks:
+        text = chunk.get("text")
+        if not text:
+            continue
+        chunk_text = str(text)
+        section = str(chunk.get("section") or "")
+        section_lower = section.lower()
+        is_eligibility_section = any(
+            marker in section_lower
+            for marker in ("eligibility", "inclusion", "exclusion", "criteria")
+        )
+        if not is_eligibility_section:
+            continue
+        label_segments = _get_label_segments(chunk_text)
+        span = _find_fragment_span(chunk_text, stripped)
+        candidate: Optional[str]
+        if span:
+            start, end = span
+            candidate = _extract_requirement_segment(chunk_text, start, end)
+        else:
+            candidate = _select_best_segment_by_tokens(
+                label_segments, query_tokens, fragment_tokens
+            )
+        if not candidate:
+            continue
+        candidate = _trim_requirement_sentences(candidate, stripped, query_tokens)
+        if not candidate:
+            continue
+        secondary_segments = _split_secondary_requirement_segment(candidate)
+        if secondary_segments:
+            best_secondary = _select_best_segment_by_tokens(
+                secondary_segments, query_tokens, fragment_tokens
+            )
+            if best_secondary:
+                candidate = best_secondary
+            else:
+                candidate = secondary_segments[0]
+        candidate_length = len(candidate)
+        if candidate_length > 600:
+            continue
+        candidate_tokens = set(_chunk_keyword_tokens(candidate))
+        fragment_overlap = len(candidate_tokens & fragment_tokens)
+        overlap = len(candidate_tokens & query_tokens) if query_tokens else 0
+        if candidate_length <= base_length:
+            if total_fragment_tokens:
+                coverage_ratio = fragment_overlap / total_fragment_tokens
+                if coverage_ratio < 0.6 and overlap == 0:
+                    continue
+        section_bonus = 0
+        if is_eligibility_section:
+            section_bonus = 2
+        length_delta = candidate_length - base_length
+        gain = min(max(length_delta, 0), 80)
+        coverage_bonus = 0
+        if total_fragment_tokens:
+            coverage_bonus = int((fragment_overlap / total_fragment_tokens) * 10)
+        score = overlap * 10 + section_bonus + gain + coverage_bonus
+        if (
+            best_candidate is None
+            or score > best_score
+            or (score == best_score and candidate_length < len(best_candidate))
+        ):
+            best_candidate = candidate
+            best_score = score
+
+    if best_candidate:
+        return best_candidate
+
+    return answer
+
+
+def _filter_intervention_segments(answer: str, *, query: Optional[str] = None) -> str:
+    if not answer:
+        return answer
+
+    segments = _get_label_segments(answer)
+    if len(segments) <= 1:
+        return answer
+
+    query_tokens = _extract_query_tokens(query)
+    if query_tokens:
+        best_overlap = -1
+        best_segments: List[str] = []
+        for segment in segments:
+            segment_tokens = set(_chunk_keyword_tokens(segment))
+            overlap = len(segment_tokens & query_tokens)
+            if overlap > best_overlap:
+                best_overlap = overlap
+                best_segments = [segment.strip()]
+            elif overlap == best_overlap and overlap > 0:
+                best_segments.append(segment.strip())
+
+        if best_overlap > 0 and best_segments:
+            return " ".join(best_segments).strip()
+
+    return segments[0].strip()
+
+
+def refine_answer_with_context(
+    answer: str,
+    context_chunks: List[dict],
+    *,
+    query: Optional[str] = None,
+    original_answer: Optional[str] = None,
+) -> str:
+    if not answer:
+        return answer
+
+    base_answer = answer.strip()
+    fragment = (original_answer or answer).strip()
+
+    expanded = _expand_requirement_answer(fragment, context_chunks, query=query)
+    candidate = expanded.strip() if expanded else ""
+
+    if not candidate:
+        candidate = base_answer
+    elif candidate.lower() == fragment.lower() and len(base_answer) > len(fragment):
+        candidate = base_answer
+
+    filtered = _filter_intervention_segments(candidate, query=query)
+    final_answer = filtered.strip() if filtered else candidate.strip()
+
+    return final_answer or base_answer
 
 
 def _select_citations(

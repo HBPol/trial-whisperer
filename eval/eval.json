@@ -33,7 +33,7 @@
       "status_code": 200
     },
     {
-      "answer": "Measurable disease (bidimensional) as defined by the RANO criteria, with a minimum measurement of 1 cm in longest diameter on MRI performed within 21 days of first dose of acalabrutinib;",
+      "answer": "Measurable disease (bidimensional) as defined by the RANO criteria, with a minimum measurement of 1 cm in longest diameter on MRI performed within 21 days of first dose of acalabrutinib.",
       "answer_exact_match": false,
       "citation_match": true,
       "citations": [
@@ -100,8 +100,8 @@
       "status_code": 200
     },
     {
-      "answer": "at least 2 biopsy samples",
-      "answer_exact_match": false,
+      "answer": "Subject has sufficient tissue so that the study team is able to acquire at least 2 biopsy samples during resection.",
+      "answer_exact_match": true,
       "citation_match": true,
       "citations": [
         {
@@ -131,8 +131,8 @@
       "status_code": 200
     },
     {
-      "answer": "WP1066",
-      "answer_exact_match": true,
+      "answer": "hormonal contraception) starting from the time of informed consent, throughout the duration of treatment with WP1066, and for 4 months after the last dose of WP1066.",
+      "answer_exact_match": false,
       "citation_match": true,
       "citations": [
         {
@@ -365,8 +365,8 @@
       "status_code": 200
     },
     {
-      "answer": "DRUG: Gliolan",
-      "answer_exact_match": true,
+      "answer": "A high follicle stimulating hormone (FSH) level in the postmenopausal range may be used to confirm a post-menopausal state in women not using hormonal contraception or hormonal replacement therapy.",
+      "answer_exact_match": false,
       "citation_match": true,
       "citations": [
         {
@@ -460,7 +460,7 @@
       "status_code": 200
     },
     {
-      "answer": "Grade 2 or grade 3 meningioma according to the WHO 2021 classification.",
+      "answer": "History of bleeding diathesis (irrespective of severity). Uncontrolled intercurrent illness including (e.g., symptomatic ascites), but not limited to ongoing or active infection. Persistent \u2265 Grade 3 Lipase (\\> 2.0 - 5.0 x upper limit of normal \\[ULN\\] with signs or symptoms; \\> 5.0 x ULN and asymptomatic). Persistent proteinuria \\> 3.5 g/24 hours measured by urine protein creatinine ratio from a random urine sample (\u2265 Grade 3, CTCAE 5.0)",
       "answer_exact_match": false,
       "citation_match": true,
       "citations": [
@@ -501,8 +501,8 @@
       "status_code": 200
     },
     {
-      "answer": "RADIATION: Intensity-Modulated Radiation Therapy OTHER: Quality-of-Life",
-      "answer_exact_match": false,
+      "answer": "RADIATION: Intensity-Modulated Radiation Therapy",
+      "answer_exact_match": true,
       "citation_match": true,
       "citations": [
         {
@@ -568,8 +568,8 @@
       "status_code": 200
     },
     {
-      "answer": "DIAGNOSTIC_TEST: 18F-GE-180 PET",
-      "answer_exact_match": true,
+      "answer": "DIAGNOSTIC_TEST: 18F-GE-180",
+      "answer_exact_match": false,
       "citation_match": true,
       "citations": [
         {
@@ -631,8 +631,8 @@
       "status_code": 200
     },
     {
-      "answer": "Glioblastoma",
-      "answer_exact_match": true,
+      "answer": "Glioblastoma Performance status 3-4 (Karnofsky Performances of 60 or less)",
+      "answer_exact_match": false,
       "citation_match": true,
       "citations": [
         {
@@ -710,8 +710,8 @@
   ],
   "metrics": {
     "answer_exact_match": {
-      "accuracy": 0.7619047619047619,
-      "correct": 16,
+      "accuracy": 0.6666666666666666,
+      "correct": 14,
       "total": 21
     },
     "citation_section_match": {
