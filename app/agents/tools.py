@@ -445,33 +445,19 @@ def clean_answer_text(answer: Any) -> str:
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
     cleaned = _strip_leading_phrases(cleaned)
     cleaned = cleaned.lstrip("-:;, ")
+    for pattern in _ANSWER_WRAPPER_PATTERNS:
+        cleaned = pattern.sub("", cleaned).strip()
+
+    if (
+        len(cleaned) >= 2
+        and cleaned[0] in {'"', "'", "“", "”"}
+        and cleaned[-1] in {'"', "'", "“", "”"}
+    ):
+        cleaned = cleaned[1:-1].strip()
+
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
 
     return cleaned or original
-
-
-def prepare_answer_text(answer: Any) -> str:
-    """Normalize ``answer`` for downstream alignment and evaluation."""
-
-    cleaned = clean_answer_text(answer)
-    if not cleaned:
-        return cleaned
-
-    trimmed = cleaned
-    for pattern in _ANSWER_WRAPPER_PATTERNS:
-        trimmed = pattern.sub("", trimmed).strip()
-
-    # Remove surrounding quotes introduced by explanatory phrasing.
-    if (
-        len(trimmed) >= 2
-        and trimmed[0] in {'"', "'", "“", "”"}
-        and trimmed[-1] in {'"', "'", "“", "”"}
-    ):
-        trimmed = trimmed[1:-1].strip()
-
-    # Some wrappers append trailing punctuation after trimming, so clean again.
-    trimmed = re.sub(r"\s+", " ", trimmed).strip()
-    return trimmed or cleaned
 
 
 def _format_chunk_prefix(chunk: dict, index: int) -> str:

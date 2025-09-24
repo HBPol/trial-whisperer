@@ -5,9 +5,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import time
 from datetime import datetime, timezone
+from difflib import SequenceMatcher
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Sequence, TextIO
@@ -88,6 +90,14 @@ def load_examples(path: Path) -> List[Dict[str, Any]]:
     return examples
 
 
+_LABEL_PREFIX_PATTERN = re.compile(
+    r"^\s*(?:drug|radiation|diagnostic[_\s]?test)\s*:\s*",
+    re.IGNORECASE,
+)
+
+_TOKEN_PATTERN = re.compile(r"[\w≥≤≠±]+")
+
+
 def normalize_answer(text: Any) -> str:
     """Return a normalized string representation suitable for comparison."""
 
@@ -98,15 +108,87 @@ def normalize_answer(text: Any) -> str:
     return " ".join(text.strip().lower().split())
 
 
+def _strip_common_label_prefix(text: str) -> str:
+    """Remove common intervention-style prefixes used in trial data."""
+
+    current = text
+    while True:
+        stripped = _LABEL_PREFIX_PATTERN.sub("", current, count=1)
+        if stripped == current:
+            return stripped.strip()
+        current = stripped.strip()
+
+
+def _prepare_for_matching(value: Any) -> str:
+    """Standardize ``value`` for answer comparison."""
+
+    if value is None:
+        return ""
+    if not isinstance(value, str):
+        value = str(value)
+    value = _strip_common_label_prefix(value)
+    return normalize_answer(value)
+
+
+def _tokenize(text: str) -> List[str]:
+    if not text:
+        return []
+    cleaned = text.replace("-", " ").replace("/", " ")
+    return _TOKEN_PATTERN.findall(cleaned)
+
+
+def _tokens_jaccard(a_tokens: Sequence[str], b_tokens: Sequence[str]) -> float:
+    if not a_tokens and not b_tokens:
+        return 1.0
+    a_set = set(a_tokens)
+    b_set = set(b_tokens)
+    if not a_set and not b_set:
+        return 1.0
+    union = a_set | b_set
+    if not union:
+        return 0.0
+    intersection = a_set & b_set
+    return len(intersection) / len(union)
+
+
 def answer_exact_match(prediction: Any, gold_answers: Sequence[Any]) -> bool:
-    """Check if ``prediction`` matches any gold answer after normalization."""
+    """Check whether ``prediction`` sufficiently matches any of the gold answers."""
 
     if not gold_answers:
         return False
-    normalized_prediction = normalize_answer(prediction)
+
+    normalized_prediction = _prepare_for_matching(prediction)
     if not normalized_prediction:
         return False
-    return any(normalized_prediction == normalize_answer(ans) for ans in gold_answers)
+
+    pred_tokens = _tokenize(normalized_prediction)
+
+    for candidate in gold_answers:
+        normalized_candidate = _prepare_for_matching(candidate)
+        if not normalized_candidate:
+            continue
+        if normalized_prediction == normalized_candidate:
+            return True
+        if (
+            normalized_prediction in normalized_candidate
+            or normalized_candidate in normalized_prediction
+        ):
+            return True
+
+        cand_tokens = _tokenize(normalized_candidate)
+        short_answer = min(len(pred_tokens), len(cand_tokens)) <= 3
+        token_threshold = 0.90 if short_answer else 0.80
+        if _tokens_jaccard(pred_tokens, cand_tokens) >= token_threshold:
+            return True
+
+        sequence_threshold = 0.93 if short_answer else 0.88
+        similarity = SequenceMatcher(
+            None, normalized_prediction, normalized_candidate
+        ).ratio()
+        if similarity >= sequence_threshold:
+            return True
+
+    return False
 
 
 def citations_match(

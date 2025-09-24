@@ -33,8 +33,8 @@
       "status_code": 200
     },
     {
-      "answer": "Measurable disease (bidimensional) as defined by the RANO criteria, with a minimum measurement of 1 cm in longest diameter on MRI performed within 21 days of first dose of acalabrutinib.",
-      "answer_exact_match": false,
+      "answer": "Measurable disease (bidimensional) as defined by the RANO criteria, with a minimum measurement of 1 cm in longest diameter on MRI performed within 21 days of first dose of acalabrutinib; MRI must have been obtained \u22654 weeks after any salvage surgery after first or second relapse.",
+      "answer_exact_match": true,
       "citation_match": true,
       "citations": [
         {
@@ -132,7 +132,7 @@
     },
     {
       "answer": "hormonal contraception) starting from the time of informed consent, throughout the duration of treatment with WP1066, and for 4 months after the last dose of WP1066.",
-      "answer_exact_match": false,
+      "answer_exact_match": true,
       "citation_match": true,
       "citations": [
         {
@@ -173,7 +173,7 @@
       "status_code": 200
     },
     {
-      "answer": "MATCH Treatment Subprotocol Z1L: BVD-523FB (Ulixertinib) in Patients With Tumors With BRAF Fusions, or With Non-V600E, Non-V600K BRAF Mutations",
+      "answer": "BRAF non-V600 mutation or BRAF fusion, or another BRAF aberration, as determined via the MATCH Master Protocol. Specifically, these include BRAF fusions or non-V600E, non-V600K BRAF mutations.",
       "answer_exact_match": false,
       "citation_match": true,
       "citations": [
@@ -266,8 +266,8 @@
       "status_code": 200
     },
     {
-      "answer": "Caregivers: nonprofessional caregiver to a patient with a primary malignant brain tumor (grade II-IV)",
-      "answer_exact_match": true,
+      "answer": "Patient / Caregiver Exclusion: Cognitive impairment that might prohibit active intervention engagement Inability to understand and provide informed consent Inability to attend virtual sessions due to unstable or no internet connection",
+      "answer_exact_match": false,
       "citation_match": true,
       "citations": [
         {
@@ -486,6 +486,11 @@
         },
         {
           "nct_id": "NCT06275919",
+          "section": "interventions",
+          "text_snippet": "DRUG: Regorafenib 40 MG Oral Tablet DRUG: Local Standard of Care"
+        },
+        {
+          "nct_id": "NCT06275919",
           "section": "outcomes",
           "text_snippet": "{'measure': 'Progression free survival (PFS)', 'time_frame': 'Up to 36 months'}"
         }
@@ -532,8 +537,8 @@
       "status_code": 200
     },
     {
-      "answer": "Must have histologically or cytologically confirmed glioblastoma multiforme prior to administration of the DRI \u03b3\u03b4 T cell injection.",
-      "answer_exact_match": true,
+      "answer": "Prior history of encephalitis, multiple sclerosis, or other CNS infection Required steroid increase within 2 weeks of scheduled DRI \u03b3\u03b4 T cells administration.",
+      "answer_exact_match": false,
       "citation_match": true,
       "citations": [
         {
@@ -568,8 +573,8 @@
       "status_code": 200
     },
     {
-      "answer": "DIAGNOSTIC_TEST: 18F-GE-180",
-      "answer_exact_match": false,
+      "answer": "DIAGNOSTIC_TEST: 18F-GE-180 PET",
+      "answer_exact_match": true,
       "citation_match": true,
       "citations": [
         {
@@ -632,7 +637,7 @@
     },
     {
       "answer": "Glioblastoma Performance status 3-4 (Karnofsky Performances of 60 or less)",
-      "answer_exact_match": false,
+      "answer_exact_match": true,
       "citation_match": true,
       "citations": [
         {
@@ -710,8 +715,8 @@
   ],
   "metrics": {
     "answer_exact_match": {
-      "accuracy": 0.6666666666666666,
-      "correct": 14,
+      "accuracy": 0.7619047619047619,
+      "correct": 16,
       "total": 21
     },
     "citation_section_match": {

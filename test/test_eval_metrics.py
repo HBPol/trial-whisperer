@@ -23,6 +23,22 @@ def test_answer_exact_match_with_whitespace_and_case():
     assert not answer_exact_match("Age 17", gold)
 
 
+def test_answer_exact_match_supports_label_prefix_and_substrings():
+    assert answer_exact_match("Gliolan", ["DRUG: Gliolan"])
+    assert answer_exact_match("STAT3 inhibitor WP1066", ["WP1066"])
+    assert answer_exact_match("WP1066", ["STAT3 inhibitor WP1066"])
+
+
+def test_answer_exact_match_uses_token_similarity_when_order_differs():
+    gold = ["STAT3 inhibitor WP1066"]
+    assert answer_exact_match("WP1066 STAT3 inhibitor", gold)
+
+
+def test_answer_exact_match_uses_sequence_similarity_for_minor_edits():
+    gold = ["Hypofractionated post-operative radiotherapy"]
+    assert answer_exact_match("Hypofractionated postoperative radiotherapy", gold)
+
+
 def test_citations_match_requires_all_sections_and_matching_trial():
     citations = [
         {
