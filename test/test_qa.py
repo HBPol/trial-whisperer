@@ -401,6 +401,35 @@ def test_alignment_prefers_caregiver_clause(monkeypatch):
     assert data["answer"] == expected
 
 
+def test_alignment_recovers_hypoxia_mapping_from_fallback(monkeypatch):
+    sample_chunk = {
+        "nct_id": "NCT06041555",
+        "section": "Outcomes",
+        "text": "Hypoxia mapping",
+    }
+
+    def _fake_retrieve_chunks(query, nct_id):
+        return [sample_chunk]
+
+    def _fake_call_llm(query, chunks):
+        return "I don't know.", [sample_chunk]
+
+    monkeypatch.setattr(qa, "retrieve_chunks", _fake_retrieve_chunks)
+    monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
+
+    response = client.post(
+        "/ask/",
+        json={
+            "query": "What outcome measure tracks the MRI sequence program in NCT06041555?",
+            "nct_id": "NCT06041555",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["answer"] == "Hypoxia mapping"
+
+
 def test_alignment_expands_ecog_status_clause(monkeypatch):
     sample_chunk = {
         "nct_id": "NCTECG0001",

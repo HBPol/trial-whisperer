@@ -46,6 +46,21 @@ _ANSWER_LEADING_PATTERNS = [
 
 _LEADING_LIST_NUMERAL_PATTERN = re.compile(r"^\s*(?:\(\d+\)|\d+)[\.)]\s+")
 
+_FALLBACK_ANSWER_MARKERS = (
+    "i don't know",
+    "i do not know",
+    "don't know",
+    "do not know",
+    "not provided",
+    "not specified",
+    "not sure",
+    "no information",
+    "information not provided",
+    "not available",
+    "no answer",
+    "unsure",
+)
+
 
 @lru_cache(maxsize=1)
 def _get_qa_system_prompt() -> str:
@@ -208,6 +223,11 @@ def _normalize_for_match(text: str) -> str:
     return " ".join(normalized.split())
 
 
+_FALLBACK_NORMALIZED_MARKERS = {
+    _normalize_for_match(marker) for marker in _FALLBACK_ANSWER_MARKERS
+}
+
+
 def _extract_answer_fragments(answer: str) -> List[str]:
     fragments: List[str] = []
     if not answer:
@@ -253,6 +273,16 @@ def align_answer_to_context(
     query_token_set = set(query_tokens)
     if not (normalized_answer or fragments or answer_token_set or query_token_set):
         return stripped_answer
+
+    fallback_answer = False
+    lowered_clean = cleaned_reference.lower()
+    for marker in _FALLBACK_ANSWER_MARKERS:
+        if marker in lowered_clean:
+            fallback_answer = True
+            break
+    if not fallback_answer and normalized_answer:
+        if normalized_answer in _FALLBACK_NORMALIZED_MARKERS:
+            fallback_answer = True
 
     reference_variants: List[str] = []
     seen_variants: set[str] = set()
@@ -337,6 +367,8 @@ def align_answer_to_context(
 
     total_token_count = sum(answer_tokens.values())
     total_query_token_count = sum(query_tokens.values())
+    allow_query_only_matches = fallback_answer or total_token_count == 0
+    max_token_overlap = 0
 
     def _split_label_segments(text: str) -> List[str]:
         if not text or ":" not in text:
@@ -413,7 +445,8 @@ def align_answer_to_context(
             and unique_overlap <= 1
             and query_unique_overlap == 0
         ):
-            return None
+            if not allow_query_only_matches or not query_tokens:
+                return None
 
         coverage_ratio = 0.0
         if total_token_count:
@@ -429,7 +462,8 @@ def align_answer_to_context(
             and coverage_ratio < 0.4
             and query_coverage_ratio < 0.4
         ):
-            return None
+            if not allow_query_only_matches or not query_tokens:
+                return None
 
         total_candidate_tokens = sum(chunk_tokens.values())
         candidate_fraction = (
@@ -470,6 +504,52 @@ def align_answer_to_context(
             "candidate_fraction": candidate_fraction,
             "additional_token_count": additional_token_count,
             "additional_unique_tokens": additional_unique_tokens,
+            "total_candidate_tokens": total_candidate_tokens,
+        }
+
+    def _evaluate_query_only_candidate(candidate_text: str):
+        candidate_stripped = candidate_text.strip()
+        if not candidate_stripped:
+            return None
+
+        normalized_candidate = _normalize_for_match(candidate_stripped)
+        if not normalized_candidate:
+            return None
+
+        chunk_tokens = _chunk_keyword_tokens(candidate_stripped)
+        if not chunk_tokens:
+            return None
+
+        chunk_token_set = set(chunk_tokens)
+        query_token_overlap = sum(
+            min(count, chunk_tokens.get(token, 0))
+            for token, count in query_tokens.items()
+        )
+        query_unique_overlap = len(query_token_set & chunk_token_set)
+
+        if not (query_token_overlap or query_unique_overlap):
+            if not allow_query_only_matches:
+                return None
+            if not query_tokens:
+                return None
+
+        total_candidate_tokens = sum(chunk_tokens.values())
+        query_coverage_ratio = 0.0
+        if total_query_token_count:
+            query_coverage_ratio = query_token_overlap / total_query_token_count
+
+        return {
+            "text": candidate_stripped,
+            "length": len(candidate_stripped),
+            "coverage_ratio": query_coverage_ratio,
+            "token_overlap": 0,
+            "unique_overlap": 0,
+            "query_token_overlap": query_token_overlap,
+            "query_unique_overlap": query_unique_overlap,
+            "query_coverage_ratio": query_coverage_ratio,
+            "candidate_fraction": 0.0,
+            "additional_token_count": total_candidate_tokens,
+            "additional_unique_tokens": len(chunk_token_set),
             "total_candidate_tokens": total_candidate_tokens,
         }
 
@@ -532,7 +612,8 @@ def align_answer_to_context(
         query_unique = candidate_eval.get("query_unique_overlap", 0)
         query_tokens = candidate_eval.get("query_token_overlap", 0)
         if not (query_unique or query_tokens):
-            return
+            if not allow_query_only_matches:
+                return
 
         candidate_copy = dict(candidate_eval)
         if source_chunk and not candidate_copy.get("source_chunk"):
@@ -561,6 +642,9 @@ def align_answer_to_context(
             seen_candidates.add(chunk_text)
             chunk_eval = _evaluate_candidate(chunk_text)
             if chunk_eval:
+                max_token_overlap = max(
+                    max_token_overlap, chunk_eval.get("token_overlap", 0)
+                )
                 _consider_query_candidate(chunk_eval, chunk_text)
                 if chunk_eval["length"] <= reference_length:
                     if tuple(chunk_eval["score"]) > best_score:
@@ -572,6 +656,10 @@ def align_answer_to_context(
                         fallback_eval = chunk_eval
                     elif tuple(chunk_eval["score"]) > tuple(fallback_eval["score"]):
                         fallback_eval = chunk_eval
+            elif query_tokens:
+                query_only_eval = _evaluate_query_only_candidate(chunk_text)
+                if query_only_eval:
+                    _consider_query_candidate(query_only_eval, chunk_text)
 
         for fragment in _FRAGMENT_SPLIT_PATTERN.split(chunk_text):
             fragment_text = fragment.strip()
@@ -593,8 +681,18 @@ def align_answer_to_context(
 
                 fragment_eval = _evaluate_candidate(candidate_stripped)
                 if not fragment_eval:
+                    if query_tokens:
+                        query_only_eval = _evaluate_query_only_candidate(
+                            candidate_stripped
+                        )
+                        if query_only_eval:
+                            query_only_eval["source_chunk"] = chunk_text
+                            _consider_query_candidate(query_only_eval, chunk_text)
                     continue
 
+                max_token_overlap = max(
+                    max_token_overlap, fragment_eval.get("token_overlap", 0)
+                )
                 fragment_eval["source_chunk"] = chunk_text
                 _consider_query_candidate(fragment_eval, chunk_text)
 
@@ -618,7 +716,11 @@ def align_answer_to_context(
 
         return _prepare_aligned_text(best_candidate)
 
-    if best_query_eval and total_token_count >= 6:
+    allow_query_replacement = (
+        fallback_answer or total_token_count == 0 or max_token_overlap == 0
+    )
+
+    if best_query_eval and (allow_query_replacement or total_token_count >= 6):
         _, query_eval = best_query_eval
         coverage = query_eval.get("coverage_ratio", 0.0)
         token_overlap = query_eval.get("token_overlap", 0)
@@ -634,8 +736,39 @@ def align_answer_to_context(
         if reference_length <= 0:
             length_limit = length or 0
 
-        if coverage >= 0.5 or token_overlap >= min_token_overlap:
-            if not length or reference_length <= 0 or length <= length_limit:
+        query_tokens_matched = query_eval.get("query_token_overlap", 0)
+        query_unique = query_eval.get("query_unique_overlap", 0)
+        query_coverage = query_eval.get("query_coverage_ratio", 0.0)
+
+        meets_threshold = coverage >= 0.5 or token_overlap >= min_token_overlap
+
+        if allow_query_replacement and not meets_threshold:
+            if fallback_answer and not (query_unique or query_tokens_matched):
+                meets_threshold = True
+            else:
+                if total_query_token_count:
+                    query_token_threshold = max(1, int(total_query_token_count * 0.3))
+                else:
+                    query_token_threshold = 1
+                if total_query_token_count >= 4:
+                    query_token_threshold = max(query_token_threshold, 2)
+
+                meets_threshold = (
+                    query_unique >= 2
+                    or (
+                        query_unique >= 1
+                        and query_tokens_matched >= query_token_threshold
+                    )
+                    or query_coverage >= 0.5
+                )
+
+        if meets_threshold:
+            if (
+                allow_query_replacement
+                or not length
+                or reference_length <= 0
+                or length <= length_limit
+            ):
                 selected_text = query_eval.get("text")
                 if selected_text:
                     if query_eval.get("source_chunk"):

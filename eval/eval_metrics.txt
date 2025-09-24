@@ -1,5 +1,5 @@
 Evaluated 21 examples
-Answer exact match: 13/21 (61.9%)
+Answer exact match: 15/21 (71.4%)
 Citation coverage: 21/21 (100.0%)
 {
   "dataset": "eval/testset.sample.jsonl",
@@ -176,7 +176,7 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "Patients must have a BRAF non-V600 mutation or BRAF fusion, or another BRAF aberration, as determined via the MATCH Master Protocol.",
+      "answer": "BRAF non-V600 mutation or BRAF fusion, or another BRAF aberration.",
       "answer_exact_match": false,
       "citation_match": true,
       "citations": [
@@ -269,7 +269,7 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "Caregivers: nonprofessional caregiver to a patient with a primary malignant brain tumor (grade II-IV) Elevated Fear of Recurrence Distress Rating Primarily English speaking \\>/= 18 years of age at the time of enrollment",
+      "answer": "nonprofessional caregiver to a patient with a primary malignant brain tumor (grade II-IV) Elevated Fear of Recurrence Distress Rating Primarily English speaking \u2265 18 years of age at the time of enrollment",
       "answer_exact_match": false,
       "citation_match": true,
       "citations": [
@@ -337,7 +337,7 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "I don\u2019t know.",
+      "answer": "{'measure': 'Hypoxia mapping', 'time_frame': 'At the end of the sequence of treatment of each patient, that is 13 weeks after the beginning of the treatment'}",
       "answer_exact_match": false,
       "citation_match": true,
       "citations": [
@@ -463,8 +463,8 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "grade 2 or grade 3 meningioma",
-      "answer_exact_match": false,
+      "answer": "Histological diagnosis of grade 2 or grade 3 meningioma according to the WHO 2021 classification",
+      "answer_exact_match": true,
       "citation_match": true,
       "citations": [
         {
@@ -486,6 +486,16 @@ Citation coverage: 21/21 (100.0%)
           "nct_id": "NCT06275919",
           "section": "condition",
           "text_snippet": "Meningioma, Malignant"
+        },
+        {
+          "nct_id": "NCT06275919",
+          "section": "interventions",
+          "text_snippet": "DRUG: Regorafenib 40 MG Oral Tablet DRUG: Local Standard of Care"
+        },
+        {
+          "nct_id": "NCT06275919",
+          "section": "outcomes",
+          "text_snippet": "{'measure': 'Progression free survival (PFS)', 'time_frame': 'Up to 36 months'}"
         }
       ],
       "expected_sections": [
@@ -541,18 +551,13 @@ Citation coverage: 21/21 (100.0%)
         },
         {
           "nct_id": "NCT04165941",
-          "section": "eligibility.exclusion",
-          "text_snippet": "Patients who have received any therapy for the treatment of GBM prior to inclusion in Part A and any treatment other than standard of care as described in Part A of this study including: cellular immunotherapy or gene therapy within 6 weeks prior to entering the study, surgical resection or alkylating agent chemotherapy within 4 weeks prior to entering the study, or have received experimental immunotherapy at any time, and those who have not recovered from adverse events due to therapeutic interventions administered more than 4 weeks earlier. Patients may not be receiving any other investigational agents. Contraindication to the placement of an intracranial access device (Rickham catheter) at the time of surgery. Prior history of encephalitis, multiple sclerosis, or other CNS infection Required steroid increase within 2 weeks of scheduled DRI \u03b3\u03b4 T cells administration. Uncontrolled intercurrent illness including, but not limited to ongoing or active infection, symptomatic congestive heart failure, unstable angina pectoris, cardiac arrhythmia, or any othermedical condition that precludes surgery. Also, psychiatric illness/social situations that would limit compliance with study requirements. Allergies/hypersensitivity: Aminobisphosphonates such as Zoledronate\u00ae, Pamidronate\u00ae or similar Pregnant women are excluded from this study because the lentiviral- modified \u03b3\u03b4 T cells designed to express MGMT cells have an unknown potential for teratogenic or abortifacient effects. Because there is an unknown but potential risk for adverse events in nursing infants secondary to treatment of the mother with these cells, breastfeeding should be discontinued if the mother is treated with the lentiviral-modified \u03b3\u03b4 T cells designed to express MGMT. The following birth control methods are acceptable for this study in women of child- bearing potential: A Combination of TWO of the following: 1. Barrier method of contraception: 1. condoms (male or female) with or without a spermicidal agent, diaphragm or cervical cap with spermicide 2. IUD 2. Hormone-based Contraceptive Note: Drug-drug interactions with some ARVs will make hormonal contraception a less reliable method. Because patients with immune deficiency will be unable to mount the anticipated immune response underlying this therapeutic rationale, HIV-seropositive patients are excluded from this study. Some of the contraceptive methods listed above may not prevent the spread of HIV to other people. Patients should discuss their contraceptive choices with their health care provider to choose the best way to both prevent pregnancy as required by this study and to prevent the spread of HIV to any partner(s). Patients with history of prior organ or bone marrow transplantation are not eligible."
-        },
-        {
-          "nct_id": "NCT04165941",
           "section": "title",
           "text_snippet": "A Phase I Study of Drug Resistant Immunotherapy (DRI) with Activated, Gene Modified \u0393\u03b4 T Cells in Patients with Newly Diagnosed Glioblastoma Multiforme Receiving Maintenance Temozolomide Chemotherapy"
         },
         {
           "nct_id": "NCT04165941",
-          "section": "interventions",
-          "text_snippet": "BIOLOGICAL: DRI cell therapy"
+          "section": "eligibility.exclusion",
+          "text_snippet": "Patients who have received any therapy for the treatment of GBM prior to inclusion in Part A and any treatment other than standard of care as described in Part A of this study including: cellular immunotherapy or gene therapy within 6 weeks prior to entering the study, surgical resection or alkylating agent chemotherapy within 4 weeks prior to entering the study, or have received experimental immunotherapy at any time, and those who have not recovered from adverse events due to therapeutic interventions administered more than 4 weeks earlier. Patients may not be receiving any other investigational agents. Contraindication to the placement of an intracranial access device (Rickham catheter) at the time of surgery. Prior history of encephalitis, multiple sclerosis, or other CNS infection Required steroid increase within 2 weeks of scheduled DRI \u03b3\u03b4 T cells administration. Uncontrolled intercurrent illness including, but not limited to ongoing or active infection, symptomatic congestive heart failure, unstable angina pectoris, cardiac arrhythmia, or any othermedical condition that precludes surgery. Also, psychiatric illness/social situations that would limit compliance with study requirements. Allergies/hypersensitivity: Aminobisphosphonates such as Zoledronate\u00ae, Pamidronate\u00ae or similar Pregnant women are excluded from this study because the lentiviral- modified \u03b3\u03b4 T cells designed to express MGMT cells have an unknown potential for teratogenic or abortifacient effects. Because there is an unknown but potential risk for adverse events in nursing infants secondary to treatment of the mother with these cells, breastfeeding should be discontinued if the mother is treated with the lentiviral-modified \u03b3\u03b4 T cells designed to express MGMT. The following birth control methods are acceptable for this study in women of child- bearing potential: A Combination of TWO of the following: 1. Barrier method of contraception: 1. condoms (male or female) with or without a spermicidal agent, diaphragm or cervical cap with spermicide 2. IUD 2. Hormone-based Contraceptive Note: Drug-drug interactions with some ARVs will make hormonal contraception a less reliable method. Because patients with immune deficiency will be unable to mount the anticipated immune response underlying this therapeutic rationale, HIV-seropositive patients are excluded from this study. Some of the contraceptive methods listed above may not prevent the spread of HIV to other people. Patients should discuss their contraceptive choices with their health care provider to choose the best way to both prevent pregnancy as required by this study and to prevent the spread of HIV to any partner(s). Patients with history of prior organ or bone marrow transplantation are not eligible."
         },
         {
           "nct_id": "NCT04165941",
@@ -571,8 +576,8 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "DIAGNOSTIC_TEST: 18F-GE-180",
-      "answer_exact_match": false,
+      "answer": "DIAGNOSTIC_TEST: 18F-GE-180 PET",
+      "answer_exact_match": true,
       "citation_match": true,
       "citations": [
         {
@@ -713,8 +718,8 @@ Citation coverage: 21/21 (100.0%)
   ],
   "metrics": {
     "answer_exact_match": {
-      "accuracy": 0.6190476190476191,
-      "correct": 13,
+      "accuracy": 0.7142857142857143,
+      "correct": 15,
       "total": 21
     },
     "citation_section_match": {
