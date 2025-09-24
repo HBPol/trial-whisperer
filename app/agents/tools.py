@@ -286,7 +286,37 @@ def align_answer_to_context(
         "arm",
         "arms",
         "eligible",
+        "have",
+        "has",
+        "must",
+        "be",
+        "is",
+        "are",
+        "measurable",
     }
+
+    qualifying_suffix_markers = (
+        "as determined",
+        "as defined",
+        "as assessed",
+        "as measured",
+        "as documented",
+        "as confirmed",
+        "as outlined",
+        "per ",
+        "per the",
+        "per protocol",
+        "according to",
+        "within ",
+        "prior to",
+        "no more than",
+        "not more than",
+        "no less than",
+        "at least",
+        "at most",
+        "on or after",
+        "on or before",
+    )
 
     def _is_valid_prefix(prefix_text: str) -> bool:
         if not prefix_text:
@@ -410,6 +440,11 @@ def align_answer_to_context(
 
         candidate_length = len(candidate_stripped)
 
+        label_bonus = 0
+        if re.match(r"^[A-Z][A-Za-z0-9 _/\-]{1,30}:\s*", candidate_stripped):
+            if answer_token_set & chunk_token_set:
+                label_bonus = 1
+
         score = (
             int(span_match),
             fragment_matches,
@@ -417,6 +452,7 @@ def align_answer_to_context(
             token_overlap,
             query_unique_overlap,
             query_token_overlap,
+            label_bonus,
             -abs(candidate_length - reference_length),
             -candidate_length,
         )
@@ -467,6 +503,7 @@ def align_answer_to_context(
         baseline_score = tuple(baseline_eval["score"])
     else:
         baseline_score = (
+            0,
             0,
             0,
             0,
@@ -621,6 +658,8 @@ def align_answer_to_context(
             return False
 
         lowered_candidate = candidate_text.lower()
+        short_answer = total_token_count < 4
+
         for variant in reference_variants:
             if not variant:
                 continue
@@ -635,18 +674,41 @@ def align_answer_to_context(
             if candidate_length > length_limit:
                 continue
 
-            prefix_tokens = sum(_chunk_keyword_tokens(prefix).values()) if prefix else 0
-            suffix_tokens = sum(_chunk_keyword_tokens(suffix).values()) if suffix else 0
+            prefix_tokens_counter = (
+                _chunk_keyword_tokens(prefix) if prefix else Counter()
+            )
+            prefix_tokens = sum(prefix_tokens_counter.values()) if prefix else 0
 
-            if suffix_tokens > 2 or len(suffix) > 40:
-                continue
-
-            if not prefix and suffix:
-                if suffix_tokens == 0 and len(suffix) <= 5:
-                    return True
+            suffix_tokens_counter = (
+                _chunk_keyword_tokens(suffix) if suffix else Counter()
+            )
+            suffix_token_count = sum(suffix_tokens_counter.values()) if suffix else 0
+            suffix_length = len(suffix)
+            suffix_lower = suffix.lower()
+            suffix_has_marker = any(
+                marker in suffix_lower for marker in qualifying_suffix_markers
+            )
+            suffix_shares_answer = bool(answer_token_set & set(suffix_tokens_counter))
+            suffix_allowed = False
+            if not suffix:
+                suffix_allowed = True
+            elif suffix_token_count == 0 and suffix_length <= 5:
+                suffix_allowed = True
+            elif (
+                suffix_token_count <= 12
+                and suffix_length <= 80
+                and (
+                    suffix_has_marker
+                    or (suffix_shares_answer and suffix_token_count <= 4)
+                )
+            ):
+                suffix_allowed = True
+            if not suffix_allowed:
                 continue
 
             if not prefix:
+                if suffix:
+                    return True
                 continue
 
             base_condition = (
@@ -657,13 +719,20 @@ def align_answer_to_context(
                 and candidate_length <= length_limit
             )
 
-            if (
+            prefix_valid = (
                 _is_valid_prefix(prefix)
                 and prefix_tokens <= 25
                 and len(prefix) <= length_limit
-            ):
-                if base_condition or prefix_tokens <= 6:
-                    return True
+            )
+            if not prefix_valid:
+                continue
+
+            allow_short_prefix = (
+                short_answer and prefix_tokens <= 12 and additional_unique >= 1
+            )
+
+            if base_condition or prefix_tokens <= 6 or allow_short_prefix:
+                return True
 
         return False
 
@@ -770,9 +839,29 @@ def align_answer_to_context(
             if prefix_segment and not _is_valid_prefix(prefix_segment):
                 continue
             if suffix_segment:
-                if _chunk_keyword_tokens(suffix_segment):
-                    continue
-                if len(suffix_segment) > 5:
+                suffix_tokens_counter = _chunk_keyword_tokens(suffix_segment)
+                suffix_token_count = sum(suffix_tokens_counter.values())
+                suffix_length = len(suffix_segment)
+                suffix_lower = suffix_segment.lower()
+                suffix_has_marker = any(
+                    marker in suffix_lower for marker in qualifying_suffix_markers
+                )
+                suffix_shares_answer = bool(
+                    answer_token_set & set(suffix_tokens_counter)
+                )
+                suffix_allowed = False
+                if suffix_token_count == 0 and suffix_length <= 5:
+                    suffix_allowed = True
+                elif (
+                    suffix_token_count <= 12
+                    and suffix_length <= 80
+                    and (
+                        suffix_has_marker
+                        or (suffix_shares_answer and suffix_token_count <= 4)
+                    )
+                ):
+                    suffix_allowed = True
+                if not suffix_allowed:
                     continue
 
             return candidate
@@ -807,6 +896,7 @@ def align_answer_to_context(
             candidate_eval = {
                 "text": prepared,
                 "score": (
+                    0,
                     0,
                     0,
                     0,

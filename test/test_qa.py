@@ -401,6 +401,134 @@ def test_alignment_prefers_caregiver_clause(monkeypatch):
     assert data["answer"] == expected
 
 
+def test_alignment_expands_ecog_status_clause(monkeypatch):
+    sample_chunk = {
+        "nct_id": "NCTECG0001",
+        "section": "Eligibility.Inclusion",
+        "text": (
+            "Must have ECOG 0-1. " "Patients must provide signed informed consent."
+        ),
+    }
+
+    def _fake_retrieve_chunks(query, nct_id):
+        return [sample_chunk]
+
+    def _fake_call_llm(query, chunks):
+        return "ECOG 0-1.", [sample_chunk]
+
+    monkeypatch.setattr(qa, "retrieve_chunks", _fake_retrieve_chunks)
+    monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
+
+    response = client.post(
+        "/ask/",
+        json={
+            "query": "What ECOG performance status is required?",
+            "nct_id": "NCTECG0001",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    expected = "Must have ECOG 0-1."
+    assert data["answer"] == expected
+
+
+def test_alignment_retains_measurable_disease_window(monkeypatch):
+    sample_chunk = {
+        "nct_id": "NCTMEAS0002",
+        "section": "Eligibility.Inclusion",
+        "text": (
+            "Have measurable disease within 28 days prior to registration as determined by RECIST 1.1."
+        ),
+    }
+
+    def _fake_retrieve_chunks(query, nct_id):
+        return [sample_chunk]
+
+    def _fake_call_llm(query, chunks):
+        return "Measurable disease.", [sample_chunk]
+
+    monkeypatch.setattr(qa, "retrieve_chunks", _fake_retrieve_chunks)
+    monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
+
+    response = client.post(
+        "/ask/",
+        json={
+            "query": "What measurable disease requirement applies?",
+            "nct_id": "NCTMEAS0002",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    expected = "Have measurable disease within 28 days prior to registration as determined by RECIST 1.1."
+    assert data["answer"] == expected
+
+
+def test_alignment_restores_who_meningioma_clause(monkeypatch):
+    sample_chunk = {
+        "nct_id": "NCTMEN0003",
+        "section": "Eligibility.Inclusion",
+        "text": (
+            "Be histologically confirmed WHO grade II-III meningioma as determined via central pathology review."
+        ),
+    }
+
+    def _fake_retrieve_chunks(query, nct_id):
+        return [sample_chunk]
+
+    def _fake_call_llm(query, chunks):
+        return "WHO grade II-III meningioma.", [sample_chunk]
+
+    monkeypatch.setattr(qa, "retrieve_chunks", _fake_retrieve_chunks)
+    monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
+
+    response = client.post(
+        "/ask/",
+        json={
+            "query": "Which WHO meningioma grades are required?",
+            "nct_id": "NCTMEN0003",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    expected = "Be histologically confirmed WHO grade II-III meningioma as determined via central pathology review."
+    assert data["answer"] == expected
+
+
+def test_alignment_prefers_radiation_label_with_shared_tokens(monkeypatch):
+    sample_chunk = {
+        "nct_id": "NCTRAD0004",
+        "section": "Interventions",
+        "text": (
+            "RADIATION: Proton beam radiotherapy RADIATION: Intensity-modulated radiotherapy"
+        ),
+    }
+
+    def _fake_retrieve_chunks(query, nct_id):
+        return [sample_chunk]
+
+    def _fake_call_llm(query, chunks):
+        return "Proton beam radiotherapy.", [sample_chunk]
+
+    monkeypatch.setattr(qa, "retrieve_chunks", _fake_retrieve_chunks)
+    monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
+
+    response = client.post(
+        "/ask/",
+        json={
+            "query": "Which proton radiation technique is studied?",
+            "nct_id": "NCTRAD0004",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    expected = "RADIATION: Proton beam radiotherapy"
+    assert data["answer"] == expected
+
+
 def test_citation_selector_covers_late_sections():
     context_chunks = [
         {
