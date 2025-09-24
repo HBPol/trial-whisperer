@@ -50,30 +50,41 @@ sample dataset and fixture trials index:
 python eval/eval.py
 ```
 
-When invoked without arguments, the script loads `eval/testset.sample.jsonl`
-and points the fallback retrieval index at
-`.data/test_processed/trials.jsonl`. The bundled sample now contains 21
-`.data/processed/trials.jsonl`. The bundled sample now contains 21
-question/answer pairs pulled from the processed glioblastoma corpus used by
-the application. The
-conditions so the evaluation run exercises the same sections the application
-retrieves. The harness prints a short summary that includes the answer exact
-match rate, citation coverage for examples that expect specific sections, and
-the number of errors encountered during the run. The same metrics, along with
-per-example details, are written to the console as a JSON report or to the path
-provided via `--json-report`:
+By default the script loads the 21-example dataset in
+`eval/testset.sample.jsonl` and, when that file is used, it sets
+`TRIALS_DATA_PATH` to `.data/processed/trials.jsonl` before issuing any
+requests. This mirrors the application's offline fallback behaviour: the
+evaluation run reads the same processed trials JSONL that powers local
+retrieval when no live Qdrant instance is available. The harness prints a short
+summary that includes the answer exact match rate, citation coverage for
+examples that expect specific sections, and the number of errors encountered.
+Pass `--json-report` to capture the full report to disk:
 
 
 ```bash
 python eval/eval.py --json-report reports/eval.json
 ```
 
+Because the fallback index points at `.data/processed/trials.jsonl`, rerunning
+`make seed` (or otherwise regenerating the processed dataset) immediately feeds
+the refreshed content into the evaluation harness. If you need a stable set of
+fixtures—for example to compare runs across different application changes—copy
+the JSONL to a separate location and either export `TRIALS_DATA_PATH` or pass
+`--trials-data` when invoking `eval.py`. The repository also ships with a small
+`.data/test_processed/trials.jsonl` snapshot that is suitable for lightweight
+checks.
+
+As of the current repository state, `.data/processed/trials.jsonl` contains
+1,202 chunked sections drawn from 200 ClinicalTrials.gov studies, while the
+lightweight `.data/test_processed/trials.jsonl` covers 58 chunks across 10
+studies. These counts reflect the last ingested glioblastoma cohort and will
+change whenever you adjust the ingestion filters or rerun `make seed`.
+
 When `config/appsettings.toml` points the app at the Gemini provider the
 evaluation harness automatically waits roughly six seconds between `/ask`
 requests to respect the API's published limit. Override the delay with
 `--min-request-interval` (set it to `0` to disable the guard or increase it for
 stricter pacing):
-
 
 ```bash
 python eval/eval.py --min-request-interval 3
@@ -106,6 +117,17 @@ by the indexing step:
    `.data/processed/trials.jsonl`) with the real NCT IDs from the feed.
 3. `python -m scripts.index` embeds the chunks and upserts them into Qdrant so
    the application can serve queries immediately after seeding.
+
+#### Changing the ingestion defaults
+
+The ingestion script reads its defaults from `config/appsettings.toml`. Update
+the `[data]` section to change where the processed JSONL is written (or export
+`TRIALS_DATA_PATH` before running `make seed`), and tune the `[data.api]`
+section to control how many studies are fetched, the ClinicalTrials.gov search
+filters, and the HTTP backend. All CLI flags exposed by
+`python -m pipeline.pipeline`—such as `--max-studies`, `--page-size`, and
+`--query-term`—override the TOML configuration for that run, which is useful for
+experiments or ad-hoc cohorts.
 
 Configure the API request under the `[data.api]` section of
 ``config/appsettings.toml`. Choose the HTTP client with the `backend` key
