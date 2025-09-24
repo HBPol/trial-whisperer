@@ -48,9 +48,38 @@ form.addEventListener('submit', async (e) => {
         const data = await res.json();
         const block = document.createElement('div');
         block.className = 'card';
-        const citationsSection = renderCitationsSection(data.citations);
-        block.innerHTML = `<p>${data.answer}</p>${citationsSection}`;
+        const answerParagraph = document.createElement('p');
+        block.appendChild(answerParagraph);
         answers.prepend(block);
+
+        const answerText = typeof data.answer === 'string' ? data.answer : String(data.answer ?? '');
+
+        const typeText = (element, text) => new Promise((resolve) => {
+            const delay = 20;
+            const stepSize = Math.max(1, Math.ceil(text.length / 200));
+            let index = 0;
+
+            const typeNext = () => {
+                index = Math.min(text.length, index + stepSize);
+                element.textContent = text.slice(0, index);
+
+                if (index < text.length) {
+                    setTimeout(typeNext, delay);
+                } else {
+                    resolve();
+                }
+            };
+
+            typeNext();
+        });
+
+        await typeText(answerParagraph, answerText);
+
+        const citationsSection = renderCitationsSection(data.citations);
+        if (citationsSection) {
+            block.insertAdjacentHTML('beforeend', citationsSection);
+        }
+
         status.textContent = '';
     } catch (error) {
         status.textContent = 'Something went wrong. Please try again.';
