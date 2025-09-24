@@ -395,8 +395,7 @@ def test_alignment_prefers_caregiver_clause(monkeypatch):
     data = response.json()
     expected = (
         "Caregivers: nonprofessional caregiver to a patient with a primary malignant "
-        "brain tumor (grade II-IV) Elevated Fear of Recurrence Distress Rating "
-        "Primarily English speaking >= 18 years of age at the time of enrollment"
+        "brain tumor (grade II-IV)"
     )
     assert data["answer"] == expected
 

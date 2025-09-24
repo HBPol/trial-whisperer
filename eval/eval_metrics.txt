@@ -269,8 +269,8 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "nonprofessional caregiver to a patient with a primary malignant brain tumor (grade II-IV) Elevated Fear of Recurrence Distress Rating Primarily English speaking \u2265 18 years of age at the time of enrollment",
-      "answer_exact_match": false,
+      "answer": "Caregivers: nonprofessional caregiver to a patient with a primary malignant brain tumor (grade II-IV)",
+      "answer_exact_match": true,
       "citation_match": true,
       "citations": [
         {
@@ -306,8 +306,8 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "MGMT promoter methylation status must be tested for all patients.",
-      "answer_exact_match": true,
+      "answer": "MGMT promoter methylation status",
+      "answer_exact_match": false,
       "citation_match": true,
       "citations": [
         {
@@ -317,13 +317,13 @@ Citation coverage: 21/21 (100.0%)
         },
         {
           "nct_id": "NCT04765514",
-          "section": "title",
-          "text_snippet": "A Randomized Controlled Trial of Chemo-Radiotherapy Versus Biomarker-Guided Therapy for Elderly and Frail Patients With Newly Diagnosed Glioblastoma"
+          "section": "interventions",
+          "text_snippet": "OTHER: Biomarker based treatment (Temozolomide monotherapy or Radiotherapy monotherapy) COMBINATION_PRODUCT: Chemo-Radiotherapy consisting of 40 Gy in 15 daily fractions with concurrent temozolomide."
         },
         {
           "nct_id": "NCT04765514",
-          "section": "eligibility.exclusion",
-          "text_snippet": "1. Recurrent malignant gliomas 2. Prior invasive malignancy (except for non-melanomatous skin cancer) unless disease free for \u2265 3 years. 3. Prior head or neck RT (except for T1 glottic cancer), or systemic therapy precluding delivery of concurrent and adjuvant temozolomide 4. Treatment with any other therapeutic clinical protocol within 30 days prior to study registration or during participation in the study. 5. Severe, active co-morbidity, defined as follows: 1. Unstable angina and/or congestive heart failure requiring hospitalization 2. Transmural myocardial infarction within the last 6 months 3. Acute bacterial or fungal infection requiring intravenous antibiotics at the time of study registration 4. Any severe, active co-morbidity precluding delivery of temozolomide. 5. History of hypersensitivity reaction to temozolomide components or to dacarbazine. 6. Active HBV infection"
+          "section": "title",
+          "text_snippet": "A Randomized Controlled Trial of Chemo-Radiotherapy Versus Biomarker-Guided Therapy for Elderly and Frail Patients With Newly Diagnosed Glioblastoma"
         }
       ],
       "expected_sections": [

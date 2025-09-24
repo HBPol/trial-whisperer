@@ -32,6 +32,13 @@ _CITATION_MARKER_PATTERN = re.compile(r"\s*(?:\(\s*\d+\s*\)|\[\s*\d+\s*\])")
 _KEYWORD_PATTERN = re.compile(r"[a-z0-9]+", re.IGNORECASE)
 _FRAGMENT_SPLIT_PATTERN = re.compile(r"[\n;]+|(?<!\d)\.(?!\d)")
 _LABEL_SEGMENT_PATTERN = re.compile(r"([A-Z][A-Za-z0-9 _/\-]{1,30}:)")
+_SECONDARY_REQUIREMENT_SPLIT_PATTERN = re.compile(
+    r"\s+(?=(?:Able|Agreement|Completed|Currently|Documented|Elevated|Eligible|Exclusion|"
+    r"Female|Have|History|Inclusion|Male|Must|Need|Needs|No|Not|Primarily|Provide|Requires?|"
+    r"Should|Willing|Without|Women|Men|ECOG|Karnofsky|NYHA|BMI|ANC|Platelet|Hemoglobin|"
+    r"Creatinine|AST|ALT|Bilirubin|INR|QTc|Blood|Systolic|Diastolic|Glucose|Pregnant|"
+    r"Pregnancy|Contraception)\b)"
+)
 _ANSWER_LEADING_PATTERNS = [
     re.compile(r"^\s*(?:answer|final answer)\s*[:\-]\s*", re.IGNORECASE),
     re.compile(
@@ -375,6 +382,7 @@ def align_answer_to_context(
             return []
 
         segments: List[str] = []
+        seen_segments: set[str] = set()
         positions: List[int] = []
 
         for match in _LABEL_SEGMENT_PATTERN.finditer(text):
@@ -403,9 +411,55 @@ def align_answer_to_context(
             end = positions[idx + 1] if idx + 1 < len(positions) else len(text)
             candidate = text[start:end].strip()
             if candidate:
-                segments.append(candidate)
+                lowered_candidate = candidate.lower()
+                if lowered_candidate not in seen_segments:
+                    segments.append(candidate)
+                    seen_segments.add(lowered_candidate)
+                for sub_segment in _split_secondary_requirements(candidate):
+                    lowered_sub = sub_segment.lower()
+                    if lowered_sub in seen_segments:
+                        continue
+                    segments.append(sub_segment)
+                    seen_segments.add(lowered_sub)
 
         return segments
+
+    def _split_secondary_requirements(segment: str) -> List[str]:
+        if not segment:
+            return []
+
+        match = _LABEL_SEGMENT_PATTERN.match(segment)
+        if not match:
+            return []
+
+        prefix_end = match.end()
+        remainder = segment[prefix_end:]
+        if not remainder:
+            return []
+
+        stripped_remainder = remainder.strip()
+        if not stripped_remainder:
+            return []
+
+        parts = [
+            part.strip()
+            for part in _SECONDARY_REQUIREMENT_SPLIT_PATTERN.split(stripped_remainder)
+            if part.strip()
+        ]
+        if len(parts) <= 1:
+            return []
+
+        split_segments: List[str] = []
+        first_part = parts[0]
+        first_segment = f"{segment[:prefix_end]} {first_part}".strip()
+        if first_segment:
+            split_segments.append(first_segment)
+
+        for body_part in parts[1:]:
+            if body_part:
+                split_segments.append(body_part)
+
+        return split_segments
 
     def _evaluate_candidate(candidate_text: str):
         candidate_stripped = candidate_text.strip()
@@ -474,6 +528,13 @@ def align_answer_to_context(
 
         candidate_length = len(candidate_stripped)
 
+        majority_query_overlap = 0
+        query_focus_ratio = 0.0
+        if total_candidate_tokens:
+            if query_token_overlap * 2 >= total_candidate_tokens:
+                majority_query_overlap = 1
+            query_focus_ratio = query_token_overlap / total_candidate_tokens
+
         label_bonus = 0
         if re.match(r"^[A-Z][A-Za-z0-9 _/\-]{1,30}:\s*", candidate_stripped):
             if answer_token_set & chunk_token_set:
@@ -482,10 +543,12 @@ def align_answer_to_context(
         score = (
             int(span_match),
             fragment_matches,
-            unique_overlap,
-            token_overlap,
+            int(query_focus_ratio * 1000),
+            majority_query_overlap,
             query_unique_overlap,
             query_token_overlap,
+            unique_overlap,
+            token_overlap,
             label_bonus,
             -abs(candidate_length - reference_length),
             -candidate_length,
@@ -501,6 +564,8 @@ def align_answer_to_context(
             "query_token_overlap": query_token_overlap,
             "query_unique_overlap": query_unique_overlap,
             "query_coverage_ratio": query_coverage_ratio,
+            "majority_query_overlap": majority_query_overlap,
+            "query_focus_ratio": query_focus_ratio,
             "candidate_fraction": candidate_fraction,
             "additional_token_count": additional_token_count,
             "additional_unique_tokens": additional_unique_tokens,
@@ -538,6 +603,13 @@ def align_answer_to_context(
         if total_query_token_count:
             query_coverage_ratio = query_token_overlap / total_query_token_count
 
+        majority_query_overlap = 0
+        query_focus_ratio = 0.0
+        if total_candidate_tokens:
+            if query_token_overlap * 2 >= total_candidate_tokens:
+                majority_query_overlap = 1
+            query_focus_ratio = query_token_overlap / total_candidate_tokens
+
         return {
             "text": candidate_stripped,
             "length": len(candidate_stripped),
@@ -547,6 +619,8 @@ def align_answer_to_context(
             "query_token_overlap": query_token_overlap,
             "query_unique_overlap": query_unique_overlap,
             "query_coverage_ratio": query_coverage_ratio,
+            "majority_query_overlap": majority_query_overlap,
+            "query_focus_ratio": query_focus_ratio,
             "candidate_fraction": 0.0,
             "additional_token_count": total_candidate_tokens,
             "additional_unique_tokens": len(chunk_token_set),
@@ -578,11 +652,14 @@ def align_answer_to_context(
         return cleaned_candidate.strip()
 
     baseline_eval = _evaluate_candidate(stripped_answer)
-    baseline_score: Tuple[int, int, int, int, int, int, int, int]
+    baseline_score: Tuple[int, int, int, int, int, int, int, int, int, int, int]
     if baseline_eval:
-        baseline_score = tuple(baseline_eval["score"])
+        raw_baseline_score = tuple(baseline_eval["score"])
+        baseline_score = (0,) + raw_baseline_score[1:]
     else:
         baseline_score = (
+            0,
+            0,
             0,
             0,
             0,
@@ -602,6 +679,52 @@ def align_answer_to_context(
     fallback_fragment_eval = None
     fallback_eval = None
     best_query_eval: Optional[Tuple[Tuple[Any, ...], dict]] = None
+    best_label_query_candidate: Optional[Tuple[Tuple[Any, ...], dict]] = None
+
+    def _maybe_update_label_candidate(candidate_eval: dict) -> None:
+        nonlocal best_label_query_candidate
+        if not candidate_eval:
+            return
+        text = candidate_eval.get("text")
+        if not text:
+            return
+        match = _LABEL_SEGMENT_PATTERN.match(text)
+        if not match:
+            return
+        prefix = match.group(1)
+        if not prefix:
+            return
+        prefix_root = prefix.rstrip(": ").split()
+        if not prefix_root:
+            return
+        root_word = prefix_root[0].lower().rstrip("'s")
+        if not root_word:
+            return
+        candidate_tokens = {root_word}
+        if root_word.endswith("s"):
+            candidate_tokens.add(root_word.rstrip("s"))
+        else:
+            candidate_tokens.add(f"{root_word}s")
+        if candidate_tokens.isdisjoint(query_token_set):
+            return
+        query_overlap = candidate_eval.get("query_token_overlap", 0)
+        query_unique = candidate_eval.get("query_unique_overlap", 0)
+        if not (query_overlap or query_unique):
+            return
+        focus_ratio = candidate_eval.get("query_focus_ratio", 0.0)
+        candidate_length = candidate_eval.get("length", 0)
+        label_score = (
+            query_unique,
+            query_overlap,
+            int(focus_ratio * 1000),
+            -candidate_length,
+            candidate_eval.get("token_overlap", 0),
+        )
+        if (
+            best_label_query_candidate is None
+            or label_score > best_label_query_candidate[0]
+        ):
+            best_label_query_candidate = (label_score, candidate_eval)
 
     def _consider_query_candidate(
         candidate_eval: dict, source_chunk: Optional[str] = None
@@ -645,6 +768,7 @@ def align_answer_to_context(
                 max_token_overlap = max(
                     max_token_overlap, chunk_eval.get("token_overlap", 0)
                 )
+                _maybe_update_label_candidate(chunk_eval)
                 _consider_query_candidate(chunk_eval, chunk_text)
                 if chunk_eval["length"] <= reference_length:
                     if tuple(chunk_eval["score"]) > best_score:
@@ -687,6 +811,7 @@ def align_answer_to_context(
                         )
                         if query_only_eval:
                             query_only_eval["source_chunk"] = chunk_text
+                            _maybe_update_label_candidate(query_only_eval)
                             _consider_query_candidate(query_only_eval, chunk_text)
                     continue
 
@@ -694,6 +819,7 @@ def align_answer_to_context(
                     max_token_overlap, fragment_eval.get("token_overlap", 0)
                 )
                 fragment_eval["source_chunk"] = chunk_text
+                _maybe_update_label_candidate(fragment_eval)
                 _consider_query_candidate(fragment_eval, chunk_text)
 
                 if fragment_eval["length"] > reference_length:
@@ -709,6 +835,33 @@ def align_answer_to_context(
                     best_candidate = fragment_eval["text"]
                     best_score = tuple(fragment_eval["score"])
                     best_eval = fragment_eval
+    if (
+        best_candidate == stripped_answer
+        and best_label_query_candidate
+        and best_label_query_candidate[1]
+    ):
+        label_eval = best_label_query_candidate[1]
+        label_text = label_eval.get("text")
+        label_length = label_eval.get("length", 0)
+        if label_text:
+            trimmed_segments = _split_secondary_requirements(label_text)
+            if trimmed_segments:
+                primary_segment = trimmed_segments[0]
+                if primary_segment and primary_segment != label_text:
+                    trimmed_eval = _evaluate_candidate(primary_segment)
+                    if trimmed_eval:
+                        trimmed_eval["source_chunk"] = label_eval.get("source_chunk")
+                        label_eval = trimmed_eval
+                        label_text = trimmed_eval.get("text", label_text)
+                        label_length = trimmed_eval.get("length", label_length)
+            if reference_length <= 0 or (
+                label_length and label_length <= reference_length
+            ):
+                best_candidate = label_text
+                best_eval = label_eval
+                label_score = label_eval.get("score")
+                if label_score:
+                    best_score = tuple(label_score)
 
     if best_candidate != stripped_answer:
         if best_eval and best_eval.get("source_chunk"):
