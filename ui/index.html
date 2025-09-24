@@ -11,8 +11,12 @@
             <h1>TrialWhisperer</h1>
             <form id="ask-form">
                 <input type="text" id="query" placeholder="Ask about a trial..." required />
-                <button type="submit">Ask</button>
+                <button type="submit" id="ask-button">
+                    <span class="btn-label">Ask</span>
+                    <span class="spinner" aria-hidden="true"></span>
+                </button>
             </form>
+            <p id="status" role="status" aria-live="polite" class="status-message"></p>
             <div id="answers"></div>
         </main>
         <script src="/app.js"></script>

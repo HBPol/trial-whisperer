@@ -2,8 +2,18 @@ body { font-family: system-ui, sans-serif; margin: 2rem; }
 main { max-width: 800px; margin: 0 auto; }
 form { display: flex; gap: .5rem; margin-bottom: 1rem; }
 input { flex: 1; padding: .5rem; }
-button { padding: .5rem 1rem; }
+button { padding: .5rem 1rem; display: inline-flex; align-items: center; justify-content: center; gap: .5rem; }
+button:disabled { opacity: .7; cursor: not-allowed; }
+.btn-label { display: inline-block; }
+.spinner { width: 1em; height: 1em; border: 2px solid rgba(255, 255, 255, .8); border-right-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; display: none; }
+button.loading .spinner { display: inline-block; }
+button.loading .btn-label { visibility: hidden; }
+.status-message { min-height: 1.25rem; color: #555; font-size: .95rem; margin: 0 0 1rem; }
 .card { border: 1px solid #ddd; padding: 1rem; border-radius: 8px; margin: .5rem 0; }
 .cite { font-size: .9rem; color: #444; margin-top: .25rem; }
 .cite a { color: #0b5ed7; font-weight: 600; text-decoration: underline; }
 .cite a:visited { color: #5a3696; }
+details.citations { margin-top: .75rem; }
+details.citations > summary { cursor: pointer; font-weight: 600; color: #0b5ed7; }
+details.citations[open] > summary { margin-bottom: .5rem; }
+@keyframes spin { to { transform: rotate(360deg); } }
