@@ -10,7 +10,8 @@ import time
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Sequence
+from typing import Any, Dict, List, Mapping, Sequence, TextIO
+
 
 from fastapi.testclient import TestClient
 
@@ -136,16 +137,32 @@ def evaluate_examples(
     examples: Sequence[Dict[str, Any]],
     *,
     min_request_interval: float = 0.0,
+    verbose: bool = False,
+    output_stream: TextIO | None = None,
 ) -> List[Dict[str, Any]]:
     """Call the QA endpoint for each example and capture predictions."""
 
+    if output_stream is None:
+        output_stream = sys.stdout
+
     records: List[Dict[str, Any]] = []
     last_request_time: float | None = None
-    for example in examples:
+    total_examples = len(examples)
+    for index, example in enumerate(examples, start=1):
         query = example.get("query")
         nct_id = example.get("nct_id")
         gold_answers = example.get("answers") or []
         expected_sections = example.get("sections") or []
+
+        prefix = f"[{index}/{total_examples}] "
+
+        def log(message: str, *, indent: bool = False) -> None:
+            if not verbose:
+                return
+            formatted = message
+            if indent:
+                formatted = f"  {formatted}"
+            print(f"{prefix}{formatted}", file=output_stream, flush=True)
 
         record: Dict[str, Any] = {
             "query": query,
@@ -153,6 +170,15 @@ def evaluate_examples(
             "gold_answers": gold_answers,
             "expected_sections": expected_sections,
         }
+
+        if verbose:
+            query_preview = (query or "").strip() or "<empty query>"
+            log(f"Query: {query_preview}")
+            if nct_id:
+                log(f"Expected trial: {nct_id}", indent=True)
+            if expected_sections:
+                sections_str = ", ".join(expected_sections)
+                log(f"Expected sections: {sections_str}", indent=True)
 
         payload = {"query": query, "nct_id": nct_id}
         payload = {k: v for k, v in payload.items() if v}
@@ -214,6 +240,12 @@ def evaluate_examples(
                     "citation_match": False,
                 }
             )
+            log(
+                f"Result: ERROR - {error_message or 'Request failed without response'}",
+                indent=True,
+            )
+            if attempt > 0:
+                log(f"Attempts made: {attempt}", indent=True)
             records.append(record)
             continue
 
@@ -228,6 +260,15 @@ def evaluate_examples(
                     "citation_match": False,
                 }
             )
+            error_text = record.get("error") or "Unexpected response"
+            status = record.get("status_code")
+            status_note = f"status {status}" if status is not None else "no status"
+            log(
+                f"Result: ERROR ({status_note}) - {error_text}",
+                indent=True,
+            )
+            if attempt > 0:
+                log(f"Attempts made: {attempt}", indent=True)
             records.append(record)
             continue
 
@@ -244,6 +285,20 @@ def evaluate_examples(
                 "citation_match": citations_match(citations, expected_sections, nct_id),
             }
         )
+        answer_match = "yes" if record["answer_exact_match"] else "no"
+        if expected_sections:
+            citation_match = "yes" if record["citation_match"] else "no"
+        else:
+            citation_match = "n/a"
+        log(
+            "Result: SUCCESS - "
+            f"status {record['status_code']}, "
+            f"answer match: {answer_match}, "
+            f"citation match: {citation_match}",
+            indent=True,
+        )
+        if attempt > 1:
+            log(f"Attempts made: {attempt}", indent=True)
         records.append(record)
 
     return records
@@ -354,6 +409,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
             "Overrides provider-specific defaults."
         ),
     )
+    parser.add_argument(
+        "--quiet",
+        dest="quiet",
+        action="store_true",
+        help="Suppress per-example progress output.",
+    )
     return parser.parse_args(argv)
 
 
@@ -379,6 +440,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         raise SystemExit(f"Dataset not found: {dataset_path}")
 
     examples = load_examples(dataset_path)
+    verbose = not getattr(args, "quiet", False)
+
+    if verbose:
+        print(f"Loaded {len(examples)} examples from {dataset_path}")
 
     settings = get_settings()
     min_request_interval = 0.0
@@ -387,12 +452,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.min_request_interval is not None:
         min_request_interval = max(args.min_request_interval, 0.0)
 
+    if verbose:
+        print(f"Using minimum request interval: {min_request_interval:.2f}s")
+        print("Starting evaluation run...")
+
     with TestClient(app) as client:
         records = evaluate_examples(
             client,
             examples,
             min_request_interval=min_request_interval,
+            verbose=verbose,
         )
+    if verbose:
+        print("Evaluation run complete. Summarizing results...")
 
     metrics = compute_metrics(records)
     report = {

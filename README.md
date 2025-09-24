@@ -54,12 +54,13 @@ By default the script loads the 21-example dataset in
 `eval/testset.sample.jsonl` and, when that file is used, it sets
 `TRIALS_DATA_PATH` to `.data/processed/trials.jsonl` before issuing any
 requests. This mirrors the application's offline fallback behaviour: the
-evaluation run reads the same processed trials JSONL that powers local
-retrieval when no live Qdrant instance is available. The harness prints a short
-summary that includes the answer exact match rate, citation coverage for
-examples that expect specific sections, and the number of errors encountered.
-Pass `--json-report` to capture the full report to disk:
-
+retrieval when no live Qdrant instance is available. While running, the CLI now
+prints per-example progress details (query, expected trial/sections, result)
+and notes when retries occur. Pass `--quiet` to suppress the extra progress
+logging and revert to the previous terse behaviour. At completion the script
+still prints a short summary that includes the answer exact match rate,
+citation coverage for examples that expect specific sections, and the number of
+errors encountered. Pass `--json-report` to capture the full report to disk:
 
 ```bash
 python eval/eval.py --json-report reports/eval.json

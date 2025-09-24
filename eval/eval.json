@@ -1,6 +1,3 @@
-Evaluated 21 examples
-Answer exact match: 14/21 (66.7%)
-Citation coverage: 21/21 (100.0%)
 {
   "dataset": "eval/testset.sample.jsonl",
   "examples": [
@@ -176,7 +173,7 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "MATCH Treatment Subprotocol Z1L: BVD-523FB (Ulixertinib) in Patients With Tumors With BRAF Fusions, or With Non-V600E, Non-V600K BRAF Mutations",
+      "answer": "BRAF non-V600 mutation or BRAF fusion, or another BRAF aberration, as determined via the MATCH Master Protocol.",
       "answer_exact_match": false,
       "citation_match": true,
       "citations": [
@@ -306,8 +303,8 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "MGMT promoter methylation status must be tested for all patients.",
-      "answer_exact_match": true,
+      "answer": "MGMT promoter methylation status",
+      "answer_exact_match": false,
       "citation_match": true,
       "citations": [
         {
@@ -317,13 +314,13 @@ Citation coverage: 21/21 (100.0%)
         },
         {
           "nct_id": "NCT04765514",
-          "section": "title",
-          "text_snippet": "A Randomized Controlled Trial of Chemo-Radiotherapy Versus Biomarker-Guided Therapy for Elderly and Frail Patients With Newly Diagnosed Glioblastoma"
+          "section": "interventions",
+          "text_snippet": "OTHER: Biomarker based treatment (Temozolomide monotherapy or Radiotherapy monotherapy) COMBINATION_PRODUCT: Chemo-Radiotherapy consisting of 40 Gy in 15 daily fractions with concurrent temozolomide."
         },
         {
           "nct_id": "NCT04765514",
-          "section": "eligibility.exclusion",
-          "text_snippet": "1. Recurrent malignant gliomas 2. Prior invasive malignancy (except for non-melanomatous skin cancer) unless disease free for \u2265 3 years. 3. Prior head or neck RT (except for T1 glottic cancer), or systemic therapy precluding delivery of concurrent and adjuvant temozolomide 4. Treatment with any other therapeutic clinical protocol within 30 days prior to study registration or during participation in the study. 5. Severe, active co-morbidity, defined as follows: 1. Unstable angina and/or congestive heart failure requiring hospitalization 2. Transmural myocardial infarction within the last 6 months 3. Acute bacterial or fungal infection requiring intravenous antibiotics at the time of study registration 4. Any severe, active co-morbidity precluding delivery of temozolomide. 5. History of hypersensitivity reaction to temozolomide components or to dacarbazine. 6. Active HBV infection"
+          "section": "title",
+          "text_snippet": "A Randomized Controlled Trial of Chemo-Radiotherapy Versus Biomarker-Guided Therapy for Elderly and Frail Patients With Newly Diagnosed Glioblastoma"
         }
       ],
       "expected_sections": [
@@ -463,7 +460,7 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "grade 2 or grade 3 meningioma",
+      "answer": "Histological diagnosis of grade 2 or grade 3 meningioma according to the WHO 2021 classification.",
       "answer_exact_match": false,
       "citation_match": true,
       "citations": [
@@ -486,6 +483,16 @@ Citation coverage: 21/21 (100.0%)
           "nct_id": "NCT06275919",
           "section": "condition",
           "text_snippet": "Meningioma, Malignant"
+        },
+        {
+          "nct_id": "NCT06275919",
+          "section": "interventions",
+          "text_snippet": "DRUG: Regorafenib 40 MG Oral Tablet DRUG: Local Standard of Care"
+        },
+        {
+          "nct_id": "NCT06275919",
+          "section": "outcomes",
+          "text_snippet": "{'measure': 'Progression free survival (PFS)', 'time_frame': 'Up to 36 months'}"
         }
       ],
       "expected_sections": [
@@ -566,8 +573,8 @@ Citation coverage: 21/21 (100.0%)
       "status_code": 200
     },
     {
-      "answer": "DIAGNOSTIC_TEST: 18F-GE-180",
-      "answer_exact_match": false,
+      "answer": "DIAGNOSTIC_TEST: 18F-GE-180 PET",
+      "answer_exact_match": true,
       "citation_match": true,
       "citations": [
         {
