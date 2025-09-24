@@ -7,18 +7,45 @@
         <link rel="stylesheet" href="/styles.css" />
     </head>
     <body>
-        <main>
-            <h1>TrialWhisperer</h1>
-            <form id="ask-form">
-                <input type="text" id="query" placeholder="Ask about a trial..." required />
-                <button type="submit" id="ask-button">
-                    <span class="btn-label">Ask</span>
-                    <span class="spinner" aria-hidden="true"></span>
-                </button>
-            </form>
-            <p id="status" role="status" aria-live="polite" class="status-message"></p>
-            <div id="answers"></div>
-        </main>
+        <div class="app-shell">
+            <header class="app-header">
+                <div class="brand">
+                    <span class="brand-icon" aria-hidden="true">&#x1F489;</span>
+                    <div>
+                        <p class="eyebrow">Clinical trial assistant</p>
+                        <h1>TrialWhisperer</h1>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <button type="button" id="theme-toggle" class="button ghost" aria-pressed="false">
+                        <span class="theme-icon" aria-hidden="true"></span>
+                        <span class="toggle-label">Dark mode</span>
+                    </button>
+                    <button type="button" id="new-chat-button" class="button subtle">New chat</button>
+                </div>
+            </header>
+            <main class="chat-shell">
+                <section class="conversation" id="answers" aria-live="polite" aria-label="Answer stream"></section>
+                <section class="composer" aria-label="Ask a new question">
+                    <form id="ask-form">
+                        <label class="input-wrapper" for="query">
+                            <input type="text" id="query" placeholder="Ask about a trial..." autocomplete="off" required />
+                        </label>
+                        <button type="submit" id="ask-button" class="button primary">
+                            <span class="btn-label">Ask</span>
+                            <span class="spinner" aria-hidden="true"></span>
+                        </button>
+                    </form>
+                    <p id="status" role="status" aria-live="polite" class="status-message"></p>
+                    <div class="suggestions" aria-label="Suggested prompts">
+                        <button type="button" class="suggestion" data-query="What are the eligibility criteria for NCT01234567?">Eligibility criteria</button>
+                        <button type="button" class="suggestion" data-query="Summarize the outcomes reported for trial NCT04567890.">Summarize outcomes</button>
+                        <button type="button" class="suggestion" data-query="Compare dosing arms for the latest lung cancer trials.">Compare dosing arms</button>
+                        <button type="button" class="suggestion" data-query="List actively recruiting Phase 2 trials for rheumatoid arthritis.">Recruiting Phase 2</button>
+                    </div>
+                </section>
+            </main>
+        </div>
         <script src="/app.js"></script>
     </body>
 </html>
