@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException
 from ..agents.tools import (
     align_answer_to_context,
     call_llm_with_citations,
-    clean_answer_text,
+    prepare_answer_text,
 )
 from ..models.schemas import AskRequest, AskResponse, Citation
 from ..retrieval.search_client import retrieve_chunks
@@ -23,7 +23,7 @@ async def ask(body: AskRequest):
     if not chunks:
         raise HTTPException(status_code=404, detail="No relevant passages found.")
     answer, cits = call_llm_with_citations(body.query, chunks)
-    cleaned_answer = clean_answer_text(answer)
+    cleaned_answer = prepare_answer_text(answer)
     alignment_context = cits or chunks
     final_answer = (
         align_answer_to_context(cleaned_answer, alignment_context, query=body.query)

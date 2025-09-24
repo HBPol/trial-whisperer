@@ -75,6 +75,47 @@ def test_ask_strips_citation_markers(monkeypatch):
     assert answer_exact_match(data["answer"], [expected_answer])
 
 
+def test_prepare_answer_trims_official_title_wrapper(monkeypatch):
+    sample_chunk = {
+        "nct_id": "NCT04440358",
+        "section": "Title",
+        "text": (
+            "Assessment of Safety and Feasibility of Exablate Blood-Brain Barrier "
+            "Disruption (BBBD) With Microbubbles for the Treatment of Recurrent "
+            "Glioblastoma (rGBM) in Subjects Undergoing Carboplatin Monotherapy"
+        ),
+    }
+
+    def _fake_retrieve_chunks(query, nct_id):
+        return [sample_chunk]
+
+    def _fake_call_llm(query, chunks):
+        raw_answer = (
+            "The official title of NCT04440358 is "
+            '"Assessment of Safety and Feasibility of Exablate Blood-Brain Barrier '
+            "Disruption (BBBD) With Microbubbles for the Treatment of Recurrent "
+            'Glioblastoma (rGBM) in Subjects Undergoing Carboplatin Monotherapy"'
+        )
+        return raw_answer, [sample_chunk]
+
+    monkeypatch.setattr(qa, "retrieve_chunks", _fake_retrieve_chunks)
+    monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
+
+    response = client.post(
+        "/ask/",
+        json={
+            "query": "What is the official title of NCT04440358?",
+            "nct_id": "NCT04440358",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    expected = sample_chunk["text"]
+    assert data["answer"] == expected
+    assert answer_exact_match(data["answer"], [expected])
+
+
 def test_answer_alignment_restores_context_span(monkeypatch):
     sample_chunk = {
         "nct_id": "NCTALIGN01",
