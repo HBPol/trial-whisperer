@@ -394,6 +394,84 @@ def test_alignment_captures_fgfr_requirement(monkeypatch):
     assert data["answer"] == expected
 
 
+def test_alignment_restores_braf_clause(monkeypatch):
+    sample_chunk = {
+        "nct_id": "NCT06400225",
+        "section": "Eligibility.Inclusion",
+        "text": (
+            "Patients must have met applicable eligibility criteria in the Master MATCH "
+            "Protocol EAY131/ NCI-2015-00054 prior to registration to treatment subprotocol "
+            "Patients must fulfill all eligibility criteria of MATCH Master Protocol at the "
+            "time of registration to treatment step (Step 1, 3, 5, 7) Patients must have a "
+            "BRAF non-V600 mutation or BRAF fusion, or another BRAF aberration, as determined "
+            "via the MATCH Master Protocol Patients with BRAF V600E/K/R/D mutations are "
+            "excluded"
+        ),
+    }
+
+    def _fake_retrieve_chunks(query, nct_id):
+        return [sample_chunk]
+
+    def _fake_call_llm(query, chunks):
+        return (
+            "Patients must have a BRAF non-V600 mutation or BRAF fusion.",
+            [sample_chunk],
+        )
+
+    monkeypatch.setattr(qa, "retrieve_chunks", _fake_retrieve_chunks)
+    monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
+
+    response = client.post(
+        "/ask/",
+        json={
+            "query": "Which BRAF alterations qualify participants?",
+            "nct_id": "NCT06400225",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    expected = (
+        "Patients must have a BRAF non-V600 mutation or BRAF fusion, or another BRAF "
+        "aberration, as determined via the MATCH Master Protocol"
+    )
+    assert data["answer"] == expected
+
+
+def test_alignment_restores_mgmt_testing_clause(monkeypatch):
+    sample_chunk = {
+        "nct_id": "NCT04765514",
+        "section": "Eligibility.Inclusion",
+        "text": (
+            "1. Newly-diagnosed, histologically proven, intracranial glioblastoma with"
+            " maximal safe resection. Biopsy alone is expected if resection is not"
+            " possible. MGMT promoter methylation status must be tested for all patients."
+        ),
+    }
+
+    def _fake_retrieve_chunks(query, nct_id):
+        return [sample_chunk]
+
+    def _fake_call_llm(query, chunks):
+        return "MGMT promoter methylation status.", [sample_chunk]
+
+    monkeypatch.setattr(qa, "retrieve_chunks", _fake_retrieve_chunks)
+    monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
+
+    response = client.post(
+        "/ask/",
+        json={
+            "query": "Which biomarker testing is required before randomization?",
+            "nct_id": "NCT04765514",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    expected = "MGMT promoter methylation status must be tested for all patients."
+    assert data["answer"] == expected
+
+
 def test_alignment_prefers_caregiver_clause(monkeypatch):
     sample_chunk = {
         "nct_id": "NCT06989086",
@@ -445,7 +523,11 @@ def test_alignment_recovers_hypoxia_mapping_from_fallback(monkeypatch):
     sample_chunk = {
         "nct_id": "NCT06041555",
         "section": "Outcomes",
-        "text": "Hypoxia mapping",
+        "text": (
+            "{'measure': 'Hypoxia mapping', 'time_frame': 'At the end of the sequence of "
+            "treatment of each patient, that is 13 weeks after the beginning of the "
+            "treatment'}"
+        ),
     }
 
     def _fake_retrieve_chunks(query, nct_id):
@@ -507,7 +589,14 @@ def test_alignment_retains_measurable_disease_window(monkeypatch):
         "nct_id": "NCTMEAS0002",
         "section": "Eligibility.Inclusion",
         "text": (
-            "Have measurable disease within 28 days prior to registration as determined by RECIST 1.1."
+            "Men and women \u226518 years of age Histologically confirmed GBM at first or second"
+            " recurrence after concurrent or adjuvant chemotherapy or radiotherapy (must have"
+            " received temozolomide). Radiographic demonstration of disease progression by MRI"
+            " following prior therapy. Measurable disease (bidimensional) as defined by the RANO"
+            " criteria, with a minimum measurement of 1 cm in longest diameter on MRI performed"
+            " within 21 days of first dose of acalabrutinib; MRI must have been obtained \u22654"
+            " weeks after any salvage surgery after first or second relapse. Stable or decreasing"
+            " dose of corticosteroids \u22655 days before baseline MRI (at study entry)."
         ),
     }
 
@@ -515,7 +604,7 @@ def test_alignment_retains_measurable_disease_window(monkeypatch):
         return [sample_chunk]
 
     def _fake_call_llm(query, chunks):
-        return "Measurable disease.", [sample_chunk]
+        return "Measurable disease as defined by the RANO criteria.", [sample_chunk]
 
     monkeypatch.setattr(qa, "retrieve_chunks", _fake_retrieve_chunks)
     monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
@@ -530,7 +619,12 @@ def test_alignment_retains_measurable_disease_window(monkeypatch):
 
     assert response.status_code == 200
     data = response.json()
-    expected = "Have measurable disease within 28 days prior to registration as determined by RECIST 1.1."
+    expected = (
+        "Measurable disease (bidimensional) as defined by the RANO criteria, with a minimum"
+        " measurement of 1 cm in longest diameter on MRI performed within 21 days of first"
+        " dose of acalabrutinib; MRI must have been obtained \u22654 weeks after any salvage"
+        " surgery after first or second relapse."
+    )
     assert data["answer"] == expected
 
 
@@ -595,6 +689,44 @@ def test_alignment_prefers_radiation_label_with_shared_tokens(monkeypatch):
     assert response.status_code == 200
     data = response.json()
     expected = "RADIATION: Proton beam radiotherapy"
+    assert data["answer"] == expected
+
+
+def test_alignment_prioritizes_colon_label_over_title(monkeypatch):
+    title_chunk = {
+        "nct_id": "NCT03251027",
+        "section": "Title",
+        "text": (
+            "Intensity-Modulated Stereotactic Radiotherapy as an Upfront Scalp-Sparing "
+            "Intervention for the Treatment of Newly Diagnosed Grade II-IV Gliomas"
+        ),
+    }
+    label_chunk = {
+        "nct_id": "NCT03251027",
+        "section": "Interventions",
+        "text": "RADIATION: Intensity-Modulated Radiation Therapy",
+    }
+
+    def _fake_retrieve_chunks(query, nct_id):
+        return [title_chunk, label_chunk]
+
+    def _fake_call_llm(query, chunks):
+        return "Intensity-Modulated Radiation Therapy", [title_chunk, label_chunk]
+
+    monkeypatch.setattr(qa, "retrieve_chunks", _fake_retrieve_chunks)
+    monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
+
+    response = client.post(
+        "/ask/",
+        json={
+            "query": "Which radiation technique is delivered upfront in NCT03251027?",
+            "nct_id": "NCT03251027",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    expected = "RADIATION: Intensity-Modulated Radiation Therapy"
     assert data["answer"] == expected
 
 

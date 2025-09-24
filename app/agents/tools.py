@@ -1,3 +1,4 @@
+import ast
 import importlib
 import logging
 import re
@@ -61,6 +62,21 @@ _ANSWER_WRAPPER_PATTERNS = [
 ]
 
 _LEADING_LIST_NUMERAL_PATTERN = re.compile(r"^\s*(?:\(\d+\)|\d+)[\.)]\s+")
+_STRUCTURED_DICT_SPLIT_PATTERN = re.compile(r"}\s*(?=\{)")
+_STRUCTURED_VALUE_KEYS = (
+    "measure",
+    "outcome",
+    "name",
+    "title",
+    "description",
+    "result",
+    "endpoint",
+    "value",
+)
+_INLINE_PREFIX_SPLIT_PATTERN = re.compile(
+    r"(?<=\s)(?=(?:Patient|Patients|Subject|Subjects|Participant|Participants|Caregiver|Caregivers|"
+    r"Cohort|Cohorts|Arm|Arms|Eligible|Must|Have|Has|Be|Is|Are)\b)"
+)
 
 _FALLBACK_ANSWER_MARKERS = (
     "i don't know",
@@ -76,6 +92,64 @@ _FALLBACK_ANSWER_MARKERS = (
     "no answer",
     "unsure",
 )
+
+
+def _extract_structured_value(candidate: Any) -> Optional[str]:
+    if isinstance(candidate, str):
+        stripped = candidate.strip()
+        return stripped or None
+
+    if isinstance(candidate, dict):
+        for key in _STRUCTURED_VALUE_KEYS:
+            value = candidate.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        for value in candidate.values():
+            normalized = _extract_structured_value(value)
+            if normalized:
+                return normalized
+        return None
+
+    if isinstance(candidate, (list, tuple, set)):
+        for item in candidate:
+            normalized = _extract_structured_value(item)
+            if normalized:
+                return normalized
+
+    return None
+
+
+def _normalize_structured_snippet(text: str) -> Optional[str]:
+    if not text:
+        return None
+
+    trimmed = text.strip()
+    if not trimmed:
+        return None
+
+    candidates = [trimmed]
+    if _STRUCTURED_DICT_SPLIT_PATTERN.search(trimmed):
+        candidates = [
+            part.strip()
+            for part in _STRUCTURED_DICT_SPLIT_PATTERN.split(trimmed)
+            if part.strip()
+        ]
+
+    for candidate in candidates:
+        try:
+            parsed = ast.literal_eval(candidate)
+        except Exception:
+            # Attempt a JSON-style cleanup before giving up
+            sanitized = candidate.replace("'", '"')
+            try:
+                parsed = ast.literal_eval(sanitized)
+            except Exception:
+                continue
+        normalized = _extract_structured_value(parsed)
+        if normalized:
+            return normalized
+
+    return None
 
 
 @lru_cache(maxsize=1)
@@ -386,6 +460,12 @@ def align_answer_to_context(
         "at most",
         "on or after",
         "on or before",
+        "with a minimum",
+        "with at least",
+        "must be",
+        "must have",
+        "must include",
+        "must provide",
     )
 
     def _is_valid_prefix(prefix_text: str) -> bool:
@@ -494,6 +574,52 @@ def align_answer_to_context(
 
         return split_segments
 
+    def _split_on_prefix_tokens(
+        text: str, *, section: Optional[str] = None
+    ) -> List[str]:
+        if not text:
+            return []
+
+        if section and section.lower().startswith("title"):
+            return []
+
+        if len(text) < 80:
+            return []
+
+        parts = [
+            part.strip()
+            for part in _INLINE_PREFIX_SPLIT_PATTERN.split(text)
+            if part.strip()
+        ]
+        if len(parts) <= 1:
+            return []
+        return parts
+
+    def _trim_irrelevant_sentences(candidate_text: str) -> str:
+        if not candidate_text:
+            return candidate_text
+
+        sentences = [
+            sentence.strip()
+            for sentence in re.split(r"(?<=\.)\s+", candidate_text)
+            if sentence.strip()
+        ]
+        if len(sentences) <= 1:
+            return candidate_text
+
+        kept: List[str] = []
+        for sentence in sentences:
+            tokens = set(_chunk_keyword_tokens(sentence))
+            if tokens & answer_token_set or tokens & query_token_set:
+                kept.append(sentence)
+            else:
+                break
+
+        if kept:
+            return " ".join(kept)
+
+        return candidate_text
+
     def _evaluate_candidate(candidate_text: str):
         candidate_stripped = candidate_text.strip()
         if not candidate_stripped:
@@ -570,7 +696,9 @@ def align_answer_to_context(
 
         label_bonus = 0
         if re.match(r"^[A-Z][A-Za-z0-9 _/\-]{1,30}:\s*", candidate_stripped):
-            if answer_token_set & chunk_token_set:
+            if answer_token_set & chunk_token_set or query_token_set & chunk_token_set:
+                label_bonus = 3
+            else:
                 label_bonus = 1
 
         score = (
@@ -681,7 +809,19 @@ def align_answer_to_context(
         if not candidate_text:
             return candidate_text
         cleaned_candidate = candidate_text.strip()
-        cleaned_candidate = _LEADING_LIST_NUMERAL_PATTERN.sub("", cleaned_candidate)
+
+        structured = _normalize_structured_snippet(cleaned_candidate)
+        if structured:
+            return structured.strip()
+
+        cleaned_candidate = _LEADING_LIST_NUMERAL_PATTERN.sub(
+            "", cleaned_candidate, count=1
+        ).strip()
+
+        structured = _normalize_structured_snippet(cleaned_candidate)
+        if structured:
+            return structured.strip()
+
         return cleaned_candidate.strip()
 
     baseline_eval = _evaluate_candidate(stripped_answer)
@@ -828,6 +968,12 @@ def align_answer_to_context(
                 if segment not in candidate_texts:
                     candidate_texts.append(segment)
 
+            for prefix_segment in _split_on_prefix_tokens(
+                fragment_text, section=chunk.get("section")
+            ):
+                if prefix_segment not in candidate_texts:
+                    candidate_texts.append(prefix_segment)
+
             for candidate_text in candidate_texts:
                 candidate_stripped = candidate_text.strip()
                 if not candidate_stripped:
@@ -887,20 +1033,33 @@ def align_answer_to_context(
                         label_eval = trimmed_eval
                         label_text = trimmed_eval.get("text", label_text)
                         label_length = trimmed_eval.get("length", label_length)
-            if reference_length <= 0 or (
-                label_length and label_length <= reference_length
-            ):
+            label_is_colon = bool(
+                label_text and _LABEL_SEGMENT_PATTERN.match(label_text)
+            )
+            if reference_length <= 0:
                 best_candidate = label_text
                 best_eval = label_eval
                 label_score = label_eval.get("score")
                 if label_score:
                     best_score = tuple(label_score)
+            else:
+                tolerance = 0
+                if label_is_colon:
+                    tolerance = max(20, min(80, reference_length))
+                if label_length and label_length <= reference_length + tolerance:
+                    best_candidate = label_text
+                    best_eval = label_eval
+                    label_score = label_eval.get("score")
+                    if label_score:
+                        best_score = tuple(label_score)
 
     if best_candidate != stripped_answer:
         if best_eval and best_eval.get("source_chunk"):
-            return _prepare_aligned_text(_restore_fragment_text(best_eval))
+            return _prepare_aligned_text(
+                _trim_irrelevant_sentences(_restore_fragment_text(best_eval))
+            )
 
-        return _prepare_aligned_text(best_candidate)
+        return _prepare_aligned_text(_trim_irrelevant_sentences(best_candidate))
 
     allow_query_replacement = (
         fallback_answer or total_token_count == 0 or max_token_overlap == 0
@@ -958,8 +1117,14 @@ def align_answer_to_context(
                 selected_text = query_eval.get("text")
                 if selected_text:
                     if query_eval.get("source_chunk"):
-                        return _prepare_aligned_text(_restore_fragment_text(query_eval))
-                    return _prepare_aligned_text(selected_text)
+                        return _prepare_aligned_text(
+                            _trim_irrelevant_sentences(
+                                _restore_fragment_text(query_eval)
+                            )
+                        )
+                    return _prepare_aligned_text(
+                        _trim_irrelevant_sentences(selected_text)
+                    )
 
     def _should_expand(candidate_eval: dict) -> bool:
         total_candidate_tokens = candidate_eval.get("total_candidate_tokens", 0)
@@ -997,6 +1162,12 @@ def align_answer_to_context(
                 _chunk_keyword_tokens(prefix) if prefix else Counter()
             )
             prefix_tokens = sum(prefix_tokens_counter.values()) if prefix else 0
+            prefix_token_set = set(prefix_tokens_counter)
+            prefix_query_overlap = bool(prefix_token_set & query_token_set)
+            prefix_answer_overlap = bool(prefix_token_set & answer_token_set)
+            prefix_is_label = bool(
+                prefix and re.fullmatch(r"[A-Z0-9 _/\-]{1,30}:", prefix)
+            )
 
             suffix_tokens_counter = (
                 _chunk_keyword_tokens(suffix) if suffix else Counter()
@@ -1031,9 +1202,14 @@ def align_answer_to_context(
                 continue
 
             base_condition = (
-                total_token_count >= 4
-                and additional_unique >= 2
-                and additional_tokens >= 3
+                (
+                    (
+                        total_token_count >= 4
+                        and additional_unique >= 2
+                        and additional_tokens >= 3
+                    )
+                    or prefix_is_label
+                )
                 and candidate_fraction <= 0.7
                 and candidate_length <= length_limit
             )
@@ -1047,10 +1223,22 @@ def align_answer_to_context(
                 continue
 
             allow_short_prefix = (
-                short_answer and prefix_tokens <= 12 and additional_unique >= 1
+                prefix_tokens <= 12
+                and (
+                    short_answer
+                    or prefix_query_overlap
+                    or prefix_answer_overlap
+                    or prefix_is_label
+                )
+                and (additional_unique >= 1 or prefix_is_label)
             )
 
-            if base_condition or prefix_tokens <= 6 or allow_short_prefix:
+            if (
+                base_condition
+                or prefix_tokens <= 6
+                or allow_short_prefix
+                or (prefix_is_label and prefix_query_overlap)
+            ):
                 return True
 
         return False
@@ -1079,6 +1267,13 @@ def align_answer_to_context(
         if not tail:
             return len(text)
 
+        first_char = tail[0]
+        if first_char in ".!?":
+            end = index + 1
+            while end < len(text) and text[end].isspace():
+                end += 1
+            return end
+
         candidates: List[int] = []
 
         list_boundary = re.search(r",\s*(?:\d+[\.)])", tail)
@@ -1089,7 +1284,18 @@ def align_answer_to_context(
         if label_boundary:
             candidates.append(index + label_boundary.start())
 
-        for punct in (".", ";", "!", "?"):
+        semicolon_pos = tail.find(";")
+        while semicolon_pos != -1:
+            remainder = tail[semicolon_pos + 1 :]
+            if re.match(
+                r"\s*(?:\d+[\.)]|[A-Z][A-Za-z0-9 _/\-]{1,30}:)",
+                remainder,
+            ):
+                candidates.append(index + semicolon_pos + 1)
+                break
+            semicolon_pos = tail.find(";", semicolon_pos + 1)
+
+        for punct in (".", "!", "?"):
             pos = tail.find(punct)
             while pos != -1:
                 # Skip decimal values like 1.5
@@ -1118,13 +1324,51 @@ def align_answer_to_context(
             return None
 
         lowered_chunk = chunk_text.lower()
+        sanitized_chars = list(chunk_text)
+        depth = 0
+        for idx, ch in enumerate(chunk_text):
+            if ch == "(":
+                depth += 1
+                sanitized_chars[idx] = " "
+                continue
+            if ch == ")":
+                sanitized_chars[idx] = " "
+                if depth > 0:
+                    depth -= 1
+                continue
+            if depth > 0:
+                sanitized_chars[idx] = " "
+        sanitized_chunk = "".join(sanitized_chars).lower()
+
         for variant in reference_variants:
             if not variant:
                 continue
             lowered_variant = variant.lower()
             match_index = lowered_chunk.find(lowered_variant)
             if match_index == -1:
-                continue
+                match_index = sanitized_chunk.find(lowered_variant)
+                if match_index == -1:
+                    pattern = re.compile(
+                        re.escape(lowered_variant).replace("\\ ", r"\\s+")
+                    )
+                    match = pattern.search(sanitized_chunk)
+                    if not match:
+                        tokens = lowered_variant.split()
+                        token_start = None
+                        search_pos = 0
+                        for token in tokens:
+                            pos = sanitized_chunk.find(token, search_pos)
+                            if pos == -1:
+                                token_start = None
+                                break
+                            if token_start is None:
+                                token_start = pos
+                            search_pos = pos + len(token)
+                        if token_start is None:
+                            continue
+                        match_index = token_start
+                    else:
+                        match_index = match.start()
             start = _find_clause_start(chunk_text, match_index)
             end = _find_clause_end(chunk_text, match_index + len(variant))
             if end <= start:
@@ -1188,10 +1432,10 @@ def align_answer_to_context(
 
     if fallback_fragment_eval and _should_expand(fallback_fragment_eval):
         restored = _restore_fragment_text(fallback_fragment_eval)
-        return _prepare_aligned_text(restored)
+        return _prepare_aligned_text(_trim_irrelevant_sentences(restored))
 
     if fallback_eval and _should_expand(fallback_eval):
-        return _prepare_aligned_text(fallback_eval["text"])
+        return _prepare_aligned_text(_trim_irrelevant_sentences(fallback_eval["text"]))
 
     expanded_candidates: List[dict] = []
 
@@ -1232,7 +1476,7 @@ def align_answer_to_context(
 
     if expanded_candidates:
         best_expanded = max(expanded_candidates, key=lambda item: tuple(item["score"]))
-        return best_expanded["text"]
+        return _trim_irrelevant_sentences(best_expanded["text"])
 
     return stripped_answer
 

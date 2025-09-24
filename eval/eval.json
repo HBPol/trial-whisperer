@@ -173,7 +173,7 @@
       "status_code": 200
     },
     {
-      "answer": "BRAF non-V600 mutation or BRAF fusion, or another BRAF aberration, as determined via the MATCH Master Protocol.",
+      "answer": "MATCH Treatment Subprotocol Z1L: BVD-523FB (Ulixertinib) in Patients With Tumors With BRAF Fusions, or With Non-V600E, Non-V600K BRAF Mutations",
       "answer_exact_match": false,
       "citation_match": true,
       "citations": [
@@ -303,8 +303,8 @@
       "status_code": 200
     },
     {
-      "answer": "MGMT promoter methylation status",
-      "answer_exact_match": false,
+      "answer": "MGMT promoter methylation status must be tested for all patients.",
+      "answer_exact_match": true,
       "citation_match": true,
       "citations": [
         {
@@ -334,8 +334,8 @@
       "status_code": 200
     },
     {
-      "answer": "{'measure': 'Hypoxia mapping', 'time_frame': 'At the end of the sequence of treatment of each patient, that is 13 weeks after the beginning of the treatment'}",
-      "answer_exact_match": false,
+      "answer": "Hypoxia mapping",
+      "answer_exact_match": true,
       "citation_match": true,
       "citations": [
         {
@@ -460,7 +460,7 @@
       "status_code": 200
     },
     {
-      "answer": "Histological diagnosis of grade 2 or grade 3 meningioma according to the WHO 2021 classification.",
+      "answer": "Grade 2 or grade 3 meningioma according to the WHO 2021 classification.",
       "answer_exact_match": false,
       "citation_match": true,
       "citations": [
@@ -486,11 +486,6 @@
         },
         {
           "nct_id": "NCT06275919",
-          "section": "interventions",
-          "text_snippet": "DRUG: Regorafenib 40 MG Oral Tablet DRUG: Local Standard of Care"
-        },
-        {
-          "nct_id": "NCT06275919",
           "section": "outcomes",
           "text_snippet": "{'measure': 'Progression free survival (PFS)', 'time_frame': 'Up to 36 months'}"
         }
@@ -506,7 +501,7 @@
       "status_code": 200
     },
     {
-      "answer": "Intensity-Modulated Stereotactic Radiotherapy",
+      "answer": "RADIATION: Intensity-Modulated Radiation Therapy OTHER: Quality-of-Life",
       "answer_exact_match": false,
       "citation_match": true,
       "citations": [
@@ -715,8 +710,8 @@
   ],
   "metrics": {
     "answer_exact_match": {
-      "accuracy": 0.6666666666666666,
-      "correct": 14,
+      "accuracy": 0.7619047619047619,
+      "correct": 16,
       "total": 21
     },
     "citation_section_match": {
