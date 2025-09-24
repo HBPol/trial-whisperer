@@ -10,11 +10,10 @@ const renderCitation = (citation) => {
 form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const query = document.getElementById('query').value;
-    const nct = document.getElementById('nct').value || null;
     const res = await fetch('/ask/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query, nct_id: nct })
+        body: JSON.stringify({ query })
     });
     const data = await res.json();
     const block = document.createElement('div');

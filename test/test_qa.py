@@ -35,6 +35,28 @@ def test_ask_returns_answer_and_citations():
     assert {"nct_id", "section", "text_snippet"} <= citation.keys()
 
 
+def test_ask_extracts_nct_id_from_query(monkeypatch):
+    _load_index()
+    expected_id = search_client._FAKE_INDEX[0]["nct_id"]
+
+    sample_chunk = {"nct_id": expected_id, "section": "Summary", "text": "Details."}
+
+    def _fake_retrieve_chunks(query, nct_id):
+        assert nct_id == expected_id
+        return [sample_chunk]
+
+    def _fake_call_llm(query, chunks):
+        return "Details.", [sample_chunk]
+
+    monkeypatch.setattr(qa, "retrieve_chunks", _fake_retrieve_chunks)
+    monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
+
+    response = client.post("/ask/", json={"query": f"Summarise {expected_id}"})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["citations"][0]["nct_id"] == expected_id
+
+
 def test_ask_requires_query():
     _load_index()
     sample_id = search_client._FAKE_INDEX[0]["nct_id"]
