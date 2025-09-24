@@ -33,6 +33,7 @@ def test_ask_returns_answer_and_citations():
     assert len(data["citations"]) >= 1
     citation = data["citations"][0]
     assert {"nct_id", "section", "text_snippet"} <= citation.keys()
+    assert data["nct_id"] == sample_id
 
 
 def test_ask_extracts_nct_id_from_query(monkeypatch):
@@ -55,6 +56,7 @@ def test_ask_extracts_nct_id_from_query(monkeypatch):
     assert response.status_code == 200
     data = response.json()
     assert data["citations"][0]["nct_id"] == expected_id
+    assert data["nct_id"] == expected_id
 
 
 def test_ask_requires_query():
@@ -66,6 +68,14 @@ def test_ask_requires_query():
     ):
         response = client.post("/ask/", json=payload)
         assert response.status_code == 400
+
+
+def test_ask_requires_nct_id_if_missing():
+    _load_index()
+    response = client.post("/ask/", json={"query": "Tell me about this study."})
+    assert response.status_code == 400
+    data = response.json()
+    assert data["detail"] == "An NCT ID is required to answer this question."
 
 
 def test_ask_strips_citation_markers(monkeypatch):

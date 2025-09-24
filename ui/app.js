@@ -7,6 +7,9 @@ const newChatButton = document.getElementById('new-chat-button');
 const themeToggleButton = document.getElementById('theme-toggle');
 const suggestionButtons = document.querySelectorAll('[data-query]');
 const CTGOV_STUDY_BASE_URL = 'https://clinicaltrials.gov/study/';
+const NCT_ID_PATTERN = /\bNCT\d{8}\b/i;
+
+let lastNctId = null;
 
 const setLoadingState = (isLoading) => {
     askButton.disabled = isLoading;
@@ -35,6 +38,14 @@ const renderCitationsSection = (citations) => {
     return `<details class="citations"><summary>${summaryLabel}</summary>${citationMarkup}</details>`;
 };
 
+const extractNctId = (text) => {
+    if (!text) {
+        return null;
+    }
+    const match = text.match(NCT_ID_PATTERN);
+    return match ? match[0].toUpperCase() : null;
+};
+
 const typeText = (element, text) =>
     new Promise((resolve) => {
         const delay = 20;
@@ -58,6 +69,7 @@ const typeText = (element, text) =>
 const clearConversation = () => {
     answers.innerHTML = '';
     status.textContent = '';
+    lastNctId = null;
     form.reset();
     queryInput.focus();
     updateNewChatState();
@@ -126,6 +138,16 @@ form.addEventListener('submit', async (e) => {
         return;
     }
 
+    const explicitNctId = extractNctId(query);
+    const effectiveNctId = explicitNctId || lastNctId;
+
+    if (!effectiveNctId) {
+        status.textContent = 'Please provide a ClinicalTrials.gov NCT ID to start a new chat.';
+        queryInput.focus();
+        updateNewChatState();
+        return;
+    }
+
     setLoadingState(true);
     status.textContent = 'Searching for relevant trials...';
 
@@ -133,14 +155,40 @@ form.addEventListener('submit', async (e) => {
         const res = await fetch('/ask/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query })
+            body: JSON.stringify({ query, nct_id: effectiveNctId })
         });
 
-        if (!res.ok) {
-            throw new Error('Request failed');
+        let data = null;
+        try {
+            data = await res.json();
+        } catch (parseError) {
+            if (res.ok) {
+                throw parseError;
+            }
         }
 
-        const data = await res.json();
+        if (!res.ok) {
+            const message =
+                data && typeof data.detail === 'string'
+                    ? data.detail
+                    : 'Something went wrong. Please try again.';
+            status.textContent = message;
+            return;
+        }
+
+        if (!data || typeof data !== 'object') {
+            status.textContent = 'Unexpected response. Please try again.';
+            return;
+        }
+
+        if (typeof data.nct_id === 'string' && data.nct_id.trim().length > 0) {
+            lastNctId = data.nct_id.trim().toUpperCase();
+        } else if (explicitNctId) {
+            lastNctId = explicitNctId;
+        } else if (effectiveNctId) {
+            lastNctId = effectiveNctId;
+        }
+
         const block = document.createElement('div');
         block.className = 'card';
         const answerParagraph = document.createElement('p');
@@ -158,7 +206,9 @@ form.addEventListener('submit', async (e) => {
 
         status.textContent = '';
     } catch (error) {
-        status.textContent = 'Something went wrong. Please try again.';
+        if (!status.textContent) {
+            status.textContent = 'Something went wrong. Please try again.';
+        }
         console.error(error);
     } finally {
         setLoadingState(false);

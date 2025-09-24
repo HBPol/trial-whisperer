@@ -80,6 +80,7 @@ def test_offline_ask_returns_passages(offline_trials):
 
     assert response.status_code == 200
     payload = response.json()
+    assert payload["nct_id"] == nct_id
     assert payload["citations"]
     assert all(citation["nct_id"] == nct_id for citation in payload["citations"])
     assert any(

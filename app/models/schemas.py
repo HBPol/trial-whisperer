@@ -17,6 +17,7 @@ class Citation(BaseModel):
 class AskResponse(BaseModel):
     answer: str
     citations: List[Citation]
+    nct_id: Optional[str] = None
 
 
 class PatientProfile(BaseModel):

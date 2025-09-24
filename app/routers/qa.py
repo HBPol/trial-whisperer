@@ -35,7 +35,16 @@ async def ask(body: AskRequest):
     if not body.query or not body.query.strip():
         raise HTTPException(status_code=400, detail="query is required")
 
-    nct_id = body.nct_id or _extract_nct_id_from_query(body.query)
+    nct_id = body.nct_id.upper() if body.nct_id else None
+    if not nct_id:
+        nct_id = _extract_nct_id_from_query(body.query)
+
+    if not nct_id:
+        raise HTTPException(
+            status_code=400,
+            detail="An NCT ID is required to answer this question.",
+        )
+
     chunks = retrieve_chunks(query=body.query, nct_id=nct_id)
     if not chunks:
         raise HTTPException(status_code=404, detail="No relevant passages found.")
@@ -56,4 +65,4 @@ async def ask(body: AskRequest):
         Citation(nct_id=c["nct_id"], section=c["section"], text_snippet=c["text"])
         for c in cits
     ]
-    return AskResponse(answer=final_answer, citations=citations)
+    return AskResponse(answer=final_answer, citations=citations, nct_id=nct_id)
