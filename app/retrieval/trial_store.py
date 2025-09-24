@@ -12,6 +12,7 @@ from app.models.schemas import TrialMetadata
 
 TRIALS_DATA_ENV_VAR = "TRIALS_DATA_PATH"
 _DEFAULT_TRIALS_PATH = Path(".data/processed/trials.jsonl")
+CTGOV_STUDY_BASE_URL = "https://clinicaltrials.gov/study/"
 
 
 def get_trials_data_path() -> Path:
@@ -77,7 +78,12 @@ def _build_index(data_path: str | Path) -> Dict[str, TrialMetadata]:
 
             trial = trials.get(nct_id)
             if trial is None:
-                trial = TrialMetadata(id=nct_id, title=None, sections={})
+                trial = TrialMetadata(
+                    id=nct_id,
+                    title=None,
+                    sections={},
+                    trial_url=f"{CTGOV_STUDY_BASE_URL}{nct_id}",
+                )
                 trials[nct_id] = trial
 
             trial.sections[section] = text

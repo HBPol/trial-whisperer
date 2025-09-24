@@ -9,8 +9,12 @@ import httpx
 import pytest
 import requests
 
-from pipeline.ctgov_api import (DEFAULT_BASE_URL, CtGovApiError, CtGovClient,
-                                CtGovRequestsClient)
+from pipeline.ctgov_api import (
+    DEFAULT_BASE_URL,
+    CtGovApiError,
+    CtGovClient,
+    CtGovRequestsClient,
+)
 
 
 @dataclass

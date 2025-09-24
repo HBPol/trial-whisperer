@@ -41,6 +41,68 @@ The seeding step requires an accessible Qdrant instance. If `QDRANT_URL` and
 container (`docker run -p 6333:6333 qdrant/qdrant`). Ensure Docker is installed
 or provide a remote Qdrant endpoint via `QDRANT_URL`/`QDRANT_API_KEY`.
 
+## Evaluation
+
+Use the evaluation harness to exercise the `/ask` endpoint against the bundled
+sample dataset and fixture trials index:
+
+```bash
+python eval/eval.py
+```
+
+By default the script loads the 21-example dataset in
+`eval/testset.sample.jsonl` and, when that file is used, it sets
+`TRIALS_DATA_PATH` to `.data/processed/trials.jsonl` before issuing any
+requests. This mirrors the application's offline fallback behaviour: the
+retrieval when no live Qdrant instance is available. While running, the CLI now
+prints per-example progress details (query, expected trial/sections, result)
+and notes when retries occur. Pass `--quiet` to suppress the extra progress
+logging and revert to the previous terse behaviour. At completion the script
+still prints a short summary that includes the answer exact match rate,
+citation coverage for examples that expect specific sections, and the number of
+errors encountered. Pass `--json-report` to capture the full report to disk:
+
+```bash
+python eval/eval.py --json-report reports/eval.json
+```
+
+Because the fallback index points at `.data/processed/trials.jsonl`, rerunning
+`make seed` (or otherwise regenerating the processed dataset) immediately feeds
+the refreshed content into the evaluation harness. If you need a stable set of
+fixtures—for example to compare runs across different application changes—copy
+the JSONL to a separate location and either export `TRIALS_DATA_PATH` or pass
+`--trials-data` when invoking `eval.py`. The repository also ships with a small
+`.data/test_processed/trials.jsonl` snapshot that is suitable for lightweight
+checks.
+
+As of the current repository state, `.data/processed/trials.jsonl` contains
+1,202 chunked sections drawn from 200 ClinicalTrials.gov studies, while the
+lightweight `.data/test_processed/trials.jsonl` covers 58 chunks across 10
+studies. These counts reflect the last ingested glioblastoma cohort and will
+change whenever you adjust the ingestion filters or rerun `make seed`.
+
+When `config/appsettings.toml` points the app at the Gemini provider the
+evaluation harness automatically waits roughly six seconds between `/ask`
+requests to respect the API's published limit. Override the delay with
+`--min-request-interval` (set it to `0` to disable the guard or increase it for
+stricter pacing):
+
+```bash
+python eval/eval.py --min-request-interval 3
+```
+During local development or tests the API falls back to an in-memory index when
+no live Qdrant backend is configured. `eval.py` now exposes a `--trials-data`
+flag to control the source JSONL file for that offline index, mirroring the
+`TRIALS_DATA_PATH` environment variable understood by the application. Specify
+it alongside a custom dataset to run the evaluation against a different set of
+processed trials:
+
+
+```bash
+python eval/eval.py eval/custom_trials.jsonl \
+  --trials-data .data/processed/trials.jsonl \
+  --json-report reports/custom.json
+```
 
 ### Ingesting ClinicalTrials.gov trials
 
@@ -56,6 +118,17 @@ by the indexing step:
    `.data/processed/trials.jsonl`) with the real NCT IDs from the feed.
 3. `python -m scripts.index` embeds the chunks and upserts them into Qdrant so
    the application can serve queries immediately after seeding.
+
+#### Changing the ingestion defaults
+
+The ingestion script reads its defaults from `config/appsettings.toml`. Update
+the `[data]` section to change where the processed JSONL is written (or export
+`TRIALS_DATA_PATH` before running `make seed`), and tune the `[data.api]`
+section to control how many studies are fetched, the ClinicalTrials.gov search
+filters, and the HTTP backend. All CLI flags exposed by
+`python -m pipeline.pipeline`—such as `--max-studies`, `--page-size`, and
+`--query-term`—override the TOML configuration for that run, which is useful for
+experiments or ad-hoc cohorts.
 
 Configure the API request under the `[data.api]` section of
 ``config/appsettings.toml`. Choose the HTTP client with the `backend` key
@@ -211,6 +284,25 @@ docker run --rm -p 8000:8000 \
 
 - `POST /check-eligibility` – Evaluate a patient profile against a trial's eligibility criteria.
 
+- Patient payload schema:
+
+  ```json
+  {
+    "nct_id": "NCT01234567",
+    "patient": {
+      "age": 55,
+      "sex": "female",
+      "labs": {
+        "ECOG": 1
+      }
+    }
+  }
+  ```
+
+  - `age` (integer, required): Patient age in years.
+  - `sex` (string, required): Patient sex as documented in the trial (e.g., `"female"`, `"male"`).
+  - `labs` (object, optional): Free-form key/value map of lab measurements or scores. Presently captured for future use and **not** consumed by the eligibility rules.
+
   ```bash
   curl -X POST http://localhost:8000/check-eligibility \
     -H "Content-Type: application/json" \
@@ -223,6 +315,8 @@ docker run --rm -p 8000:8000 \
       }
     }'
   ```
+
+_Current limitations_: eligibility scoring currently evaluates only `age` and `sex`. Lab values are ingested but ignored until lab parsing is implemented, so they will not influence eligibility outcomes yet.
 
 Interactive API exploration is available via Swagger UI at
 `http://localhost:8000/docs` and via ReDoc at `http://localhost:8000/redoc`.

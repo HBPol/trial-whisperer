@@ -9,9 +9,10 @@
    - Index into vector DB with embeddings and metadata.
 
 2. **API (FastAPI)**
-   - `/ask` endpoint: Accepts a query string (and optional `nct_id`). Returns answer + cited chunks.  
-   - `/trial/{nct_id}` endpoint: Returns structured trial metadata.  
-   - `/check-eligibility`: Accepts `nct_id` + patient JSON (age, gender, lab values). Returns structured assessment (eligible / not eligible + reasons).  
+   - `/ask` endpoint: accepts a query string (and optional `nct_id`). Returns answer + cited chunks.  
+   - `/trial/{nct_id}` endpoint: returns structured trial metadata.  
+   - `/check-eligibility`: accepts `nct_id` + patient JSON with fields `age` (integer), `sex` (string), and an optional free-form `labs` object for lab measurements. Returns structured assessment (eligible / not eligible + reasons). While lab values are collected for future rule parsing, the MVP logic currently evaluates only age and sex.
+
 
 3. **Retrieval & RAG**
    - Top-k semantic retrieval with metadata filters.  

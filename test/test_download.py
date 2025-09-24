@@ -1,3 +1,5 @@
+import json
+
 from pipeline.download import fetch_trial_records, study_to_record
 
 
@@ -82,3 +84,22 @@ def test_fetch_trial_records_uses_provided_client():
         "max_studies": 10,
     }
     assert records[0]["nct_id"] == "NCT12345678"
+
+
+def test_fetch_trial_records_persists_raw_payload(tmp_path):
+    study = _sample_study()
+
+    class DummyClient:
+        def fetch_studies(self, **kwargs):
+            return [study]
+
+    raw_dir = tmp_path / "raw"
+    records = fetch_trial_records(client=DummyClient(), raw_dir=raw_dir)
+
+    assert records[0]["nct_id"] == "NCT12345678"
+
+    raw_files = list(raw_dir.glob("*.json"))
+    assert len(raw_files) == 1
+    with raw_files[0].open("r", encoding="utf-8") as handle:
+        stored = json.load(handle)
+    assert stored == study

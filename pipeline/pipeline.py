@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 import os
+import shutil
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Sequence
 
@@ -14,6 +16,7 @@ from .parse_xml import parse_one
 
 TRIALS_DATA_ENV_VAR = "TRIALS_DATA_PATH"
 _DEFAULT_TRIALS_OUTPUT = Path(".data/processed/trials.jsonl")
+_DEFAULT_RAW_DIR = Path(".data/raw")
 
 
 def _configured_output_path(config: Mapping[str, Any] | None = None) -> Path:
@@ -35,6 +38,7 @@ def process_trials(
     *,
     records: Iterable[Mapping[str, Any]] | None = None,
     output_path: Path | None = None,
+    raw_dir: Path | None = None,
 ) -> Path:
     """Parse, normalize, chunk and write trials to JSONL."""
 
@@ -46,9 +50,16 @@ def process_trials(
     else:
         output_path = Path(output_path)
 
+    if raw_dir is None:
+        raw_path = _DEFAULT_RAW_DIR
+    else:
+        raw_path = Path(raw_dir)
+
     if records is None:
         xml_dir = Path(xml_dir)  # type: ignore[arg-type]
         xml_files = sorted(xml_dir.glob("*.xml"))
+        if raw_path:
+            _persist_raw_xml(xml_files, raw_path)
         parsed = [parse_one(p) for p in xml_files]
     else:
         parsed = list(records)
@@ -66,6 +77,27 @@ def process_trials(
             f.write("\n")
 
     return output_path
+
+
+def _configured_raw_dir(config: Mapping[str, Any] | None = None) -> Path:
+    if config is not None:
+        data_cfg = config.get("data", {}) or {}
+        raw_dir = data_cfg.get("raw_dir")
+        if isinstance(raw_dir, str) and raw_dir.strip():
+            return Path(raw_dir)
+    return _DEFAULT_RAW_DIR
+
+
+def _persist_raw_xml(xml_files: Sequence[Path], raw_dir: Path) -> None:
+    if not xml_files:
+        return
+
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    for xml_file in xml_files:
+        target = raw_dir / f"{xml_file.name}.gz"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with xml_file.open("rb") as source, gzip.open(target, "wb") as dest:
+            shutil.copyfileobj(source, dest)
 
 
 def _load_config(path: Path) -> Mapping[str, Any]:
@@ -169,6 +201,9 @@ def main(argv: Sequence[str] | None = None) -> Path:
         help="Fetch trials from the ClinicalTrials.gov Data API",
     )
     parser.add_argument("--output", type=Path, help="Destination JSONL path")
+    parser.add_argument(
+        "--raw-dir", type=Path, help="Directory to store raw study data"
+    )
     parser.add_argument("--page-size", type=int, help="Number of studies per API page")
     parser.add_argument(
         "--max-studies", type=int, help="Maximum number of studies to download"
@@ -190,6 +225,7 @@ def main(argv: Sequence[str] | None = None) -> Path:
 
     config = _load_config(args.config)
     output_path = args.output or _default_output_path(config)
+    raw_dir = Path(args.raw_dir) if args.raw_dir else _configured_raw_dir(config)
 
     if args.from_api:
         from .ctgov_api import CtGovClient, CtGovRequestsClient
@@ -231,13 +267,19 @@ def main(argv: Sequence[str] | None = None) -> Path:
             )
 
         with client_cls(**client_settings) as api_client:
-            records = fetch_trial_records(client=api_client, **fetch_kwargs)
-        return process_trials(records=records, output_path=output_path)
+            records = fetch_trial_records(
+                client=api_client,
+                raw_dir=raw_dir,
+                **fetch_kwargs,
+            )
+            return process_trials(
+                records=records, output_path=output_path, raw_dir=raw_dir
+            )
 
     if args.xml_dir is None:
         parser.error("Specify --from-api or provide --xml-dir")
 
-    return process_trials(args.xml_dir, output_path=output_path)
+    return process_trials(args.xml_dir, output_path=output_path, raw_dir=raw_dir)
 
 
 if __name__ == "__main__":

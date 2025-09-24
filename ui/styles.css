@@ -5,3 +5,5 @@ input { flex: 1; padding: .5rem; }
 button { padding: .5rem 1rem; }
 .card { border: 1px solid #ddd; padding: 1rem; border-radius: 8px; margin: .5rem 0; }
 .cite { font-size: .9rem; color: #444; margin-top: .25rem; }
+.cite a { color: #0b5ed7; font-weight: 600; text-decoration: underline; }
+.cite a:visited { color: #5a3696; }

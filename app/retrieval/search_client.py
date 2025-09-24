@@ -22,19 +22,19 @@ _FALLBACK_INDEX_INITIALIZED = False
 _TOKEN_PATTERN = re.compile(r"[a-z0-9]+", re.IGNORECASE)
 
 
-def _ensure_fake_index_loaded() -> None:
+def _ensure_fake_index_loaded(*, force: bool = False) -> None:
     """Populate ``_FAKE_INDEX`` from the processed trials dataset."""
 
     global _FALLBACK_INDEX_INITIALIZED
 
-    if _client:
+    if _client and not force:
         return
 
     if _FAKE_INDEX:
         _FALLBACK_INDEX_INITIALIZED = True
         return
 
-    if _FALLBACK_INDEX_INITIALIZED:
+    if _FALLBACK_INDEX_INITIALIZED and not force:
         return
 
     _FALLBACK_INDEX_INITIALIZED = True
@@ -102,7 +102,7 @@ def retrieve_chunks(query: str, nct_id: Optional[str] = None, k: int = 8) -> Lis
     tests or local development the function falls back to an in-memory index
     populated via ``_FAKE_INDEX``.
     """
-
+    fallback_force = False
     if _client and settings.qdrant_collection:
         # Basic text search in Qdrant.  ``query_text`` performs on-the-fly
         # embedding using the configured text2vec model within Qdrant.
@@ -150,7 +150,11 @@ def retrieve_chunks(query: str, nct_id: Optional[str] = None, k: int = 8) -> Lis
                 for r in results
             ]
 
-    _ensure_fake_index_loaded()
+        fallback_force = True
+    elif _client:
+        fallback_force = True
+
+    _ensure_fake_index_loaded(force=fallback_force)
 
     candidates = [
         chunk for chunk in _FAKE_INDEX if (not nct_id or chunk.get("nct_id") == nct_id)
