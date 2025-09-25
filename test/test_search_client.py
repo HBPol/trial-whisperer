@@ -138,6 +138,7 @@ def test_retrieve_chunks_recovers_when_payload_index_missing(monkeypatch):
     monkeypatch.setattr(
         search_client.settings, "qdrant_collection", "unit-test", raising=False
     )
+    monkeypatch.setattr(search_client, "_embed_query", lambda _query: [0.1, 0.2, 0.3])
 
     results = search_client.retrieve_chunks("query", nct_id="NCT01234567", k=3)
 
@@ -167,8 +168,14 @@ def test_retrieve_chunks_queries_qdrant_when_local_missing(monkeypatch, tmp_path
         monkeypatch.setattr(
             search_client.settings, "qdrant_collection", "unit-test", raising=False
         )
+        monkeypatch.setattr(
+            search_client, "_embed_query", lambda _query: [0.4, 0.5, 0.6]
+        )
 
         calls: list[dict] = []
+
+        def _vector_miss(*args, **kwargs):
+            return []
 
         def _fake_search(query, *, nct_id, k):
             calls.append({"query": query, "nct_id": nct_id, "k": k})
@@ -182,6 +189,7 @@ def test_retrieve_chunks_queries_qdrant_when_local_missing(monkeypatch, tmp_path
                 )
             ]
 
+        monkeypatch.setattr(search_client, "_search_qdrant_with_vector", _vector_miss)
         monkeypatch.setattr(search_client, "_search_qdrant_with_text", _fake_search)
 
         results = search_client.retrieve_chunks("remote query", "NCT99999999", k=5)
@@ -193,6 +201,68 @@ def test_retrieve_chunks_queries_qdrant_when_local_missing(monkeypatch, tmp_path
                 "nct_id": "NCT99999999",
                 "section": "summary",
                 "text": "Remote hit",
+            }
+        ]
+    finally:
+        search_client.clear_fallback_index()
+        trial_store.clear_trials_cache()
+
+
+def test_retrieve_chunks_embeds_query_for_remote_search(monkeypatch):
+    """When local data is absent the query should be embedded before searching."""
+
+    search_client.clear_fallback_index()
+    trial_store.clear_trials_cache()
+
+    try:
+        monkeypatch.delenv(trial_store.TRIALS_DATA_ENV_VAR, raising=False)
+        monkeypatch.setattr(search_client, "_client", SimpleNamespace(), raising=False)
+        monkeypatch.setattr(
+            search_client.settings, "qdrant_collection", "unit-test", raising=False
+        )
+
+        embed_calls: list[str] = []
+
+        def _fake_embed(query: str) -> list[float]:
+            embed_calls.append(query)
+            return [0.1, 0.2, 0.3]
+
+        vector_calls: list[dict] = []
+
+        def _fake_vector_search(vector, *, nct_id, k):
+            vector_calls.append({"vector": vector, "nct_id": nct_id, "k": k})
+            return [
+                SimpleNamespace(
+                    payload={
+                        "nct_id": "NCT12345678",
+                        "section": "summary",
+                        "text": "Embedded hit",
+                    }
+                )
+            ]
+
+        def _unexpected(*args, **kwargs):  # pragma: no cover - defensive
+            raise AssertionError(
+                "Text search fallback should not be invoked when vector results exist"
+            )
+
+        monkeypatch.setattr(search_client, "_embed_query", _fake_embed)
+        monkeypatch.setattr(
+            search_client, "_search_qdrant_with_vector", _fake_vector_search
+        )
+        monkeypatch.setattr(search_client, "_search_qdrant_with_text", _unexpected)
+
+        results = search_client.retrieve_chunks("explain outcomes", "NCT12345678", k=4)
+
+        assert embed_calls == ["explain outcomes"]
+        assert vector_calls == [
+            {"vector": [0.1, 0.2, 0.3], "nct_id": "NCT12345678", "k": 4}
+        ]
+        assert results == [
+            {
+                "nct_id": "NCT12345678",
+                "section": "summary",
+                "text": "Embedded hit",
             }
         ]
     finally:

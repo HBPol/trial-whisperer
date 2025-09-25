@@ -2,6 +2,7 @@ import json
 import logging
 import re
 from collections import Counter
+from functools import lru_cache
 from typing import Iterable, List, Optional, Tuple
 
 from qdrant_client import QdrantClient
@@ -24,6 +25,28 @@ if settings.retrieval_backend == "qdrant" and settings.qdrant_url:
 _FAKE_INDEX: List[dict] = []
 _FALLBACK_INDEX_INITIALIZED = False
 _TOKEN_PATTERN = re.compile(r"[a-z0-9]+", re.IGNORECASE)
+
+
+@lru_cache(maxsize=1)
+def _get_query_embedder(model_name: str = "sentence-transformers/all-MiniLM-L6-v2"):
+    """Load and cache the sentence-transformer model used during seeding."""
+
+    from sentence_transformers import SentenceTransformer
+
+    return SentenceTransformer(model_name)
+
+
+def _embed_query(query: str) -> List[float]:
+    """Return the embedding vector for ``query`` using the cached model."""
+
+    if not query:
+        return []
+
+    model = _get_query_embedder()
+    vector = model.encode(query, convert_to_numpy=True)
+    if hasattr(vector, "tolist"):
+        return vector.tolist()
+    return list(vector)
 
 
 _QDRANT_FILTER_EXCEPTIONS: tuple[type[Exception], ...]
@@ -388,7 +411,18 @@ def retrieve_chunks(query: str, nct_id: Optional[str] = None, k: int = 8) -> Lis
     if not _client or not settings.qdrant_collection:
         return []
 
-    results = _search_qdrant_with_text(query, nct_id=nct_id, k=k)
+    results: List[rest.ScoredPoint] = []
+    try:
+        vector = _embed_query(query)
+    except Exception:  # pragma: no cover - defensive logging
+        logger.exception("Failed to embed query for Qdrant search")
+        vector = []
+
+    if vector:
+        results = _search_qdrant_with_vector(vector, nct_id=nct_id, k=k)
+
+    if not results:
+        results = _search_qdrant_with_text(query, nct_id=nct_id, k=k)
 
     return [
         {
