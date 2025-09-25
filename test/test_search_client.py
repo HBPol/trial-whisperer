@@ -54,8 +54,8 @@ def test_search_qdrant_with_text_logs_error(monkeypatch, caplog):
     )
 
 
-def test_retrieve_chunks_falls_back_when_qdrant_empty(monkeypatch, tmp_path):
-    """Fallback index should supply chunks when Qdrant has no matches."""
+def test_retrieve_chunks_returns_local_without_qdrant(monkeypatch, tmp_path):
+    """Local chunks should satisfy the query without consulting Qdrant."""
 
     search_client.clear_fallback_index()
     trial_store.clear_trials_cache()
@@ -71,16 +71,15 @@ def test_retrieve_chunks_falls_back_when_qdrant_empty(monkeypatch, tmp_path):
 
         monkeypatch.setenv(trial_store.TRIALS_DATA_ENV_VAR, str(data_path))
 
-        class EmptyQdrantClient:
-            def search(self, *args, **kwargs):
-                return []
-
-        monkeypatch.setattr(
-            search_client, "_client", EmptyQdrantClient(), raising=False
-        )
+        monkeypatch.setattr(search_client, "_client", SimpleNamespace(), raising=False)
         monkeypatch.setattr(
             search_client.settings, "qdrant_collection", "unit-test", raising=False
         )
+
+        def _unexpected(*args, **kwargs):  # pragma: no cover - defensive
+            raise AssertionError("Qdrant search should not be invoked")
+
+        monkeypatch.setattr(search_client, "_search_qdrant_with_text", _unexpected)
 
         results = search_client.retrieve_chunks(
             "sumarize inclusion criteria", "NCT04439149"
@@ -146,3 +145,56 @@ def test_retrieve_chunks_recovers_when_payload_index_missing(monkeypatch):
     assert len(client.calls) == 2
     assert client.calls[0]["kwargs"].get("query_filter") is not None
     assert client.calls[1]["kwargs"].get("query_filter") is None
+
+
+def test_retrieve_chunks_queries_qdrant_when_local_missing(monkeypatch, tmp_path):
+    """Qdrant should be consulted when the fallback index lacks the trial."""
+
+    search_client.clear_fallback_index()
+    trial_store.clear_trials_cache()
+
+    try:
+        data_path = tmp_path / "trials.jsonl"
+        payload = {
+            "nct_id": "NCT00000001",
+            "section": "summary",
+            "text": "Local trial unrelated to query.",
+        }
+        data_path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+
+        monkeypatch.setenv(trial_store.TRIALS_DATA_ENV_VAR, str(data_path))
+        monkeypatch.setattr(search_client, "_client", SimpleNamespace(), raising=False)
+        monkeypatch.setattr(
+            search_client.settings, "qdrant_collection", "unit-test", raising=False
+        )
+
+        calls: list[dict] = []
+
+        def _fake_search(query, *, nct_id, k):
+            calls.append({"query": query, "nct_id": nct_id, "k": k})
+            return [
+                SimpleNamespace(
+                    payload={
+                        "nct_id": "NCT99999999",
+                        "section": "summary",
+                        "text": "Remote hit",
+                    }
+                )
+            ]
+
+        monkeypatch.setattr(search_client, "_search_qdrant_with_text", _fake_search)
+
+        results = search_client.retrieve_chunks("remote query", "NCT99999999", k=5)
+
+        assert len(calls) == 1
+        assert calls[0] == {"query": "remote query", "nct_id": "NCT99999999", "k": 5}
+        assert results == [
+            {
+                "nct_id": "NCT99999999",
+                "section": "summary",
+                "text": "Remote hit",
+            }
+        ]
+    finally:
+        search_client.clear_fallback_index()
+        trial_store.clear_trials_cache()

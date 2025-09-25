@@ -284,44 +284,39 @@ def retrieve_chunks(query: str, nct_id: Optional[str] = None, k: int = 8) -> Lis
     tests or local development the function falls back to an in-memory index
     populated via ``_FAKE_INDEX``.
     """
-    fallback_force = False
-    if _client and settings.qdrant_collection:
-        results = _search_qdrant_with_text(query, nct_id=nct_id, k=k)
 
-        if results:
-            return [
-                {
-                    "nct_id": r.payload.get("nct_id"),
-                    "section": r.payload.get("section"),
-                    "text": r.payload.get("text"),
-                }
-                for r in results
-            ]
-
-        fallback_force = True
-    elif _client:
-        fallback_force = True
-
-    _ensure_fake_index_loaded(force=fallback_force)
+    _ensure_fake_index_loaded(force=_client is not None)
 
     candidates = [
         chunk for chunk in _FAKE_INDEX if (not nct_id or chunk.get("nct_id") == nct_id)
     ]
 
-    if not candidates:
+    if candidates:
+        query_tokens = _tokenize(query)
+        if not query_tokens:
+            return candidates[:k]
+
+        scored: List[Tuple[float, int, dict]] = []
+        for idx, chunk in enumerate(candidates):
+            score = _score_chunk(query_tokens, chunk)
+            scored.append((score, idx, chunk))
+
+        scored.sort(key=lambda entry: (-entry[0], entry[1]))
+        return [entry[2] for entry in scored[:k]]
+
+    if not _client or not settings.qdrant_collection:
         return []
 
-    query_tokens = _tokenize(query)
-    if not query_tokens:
-        return candidates[:k]
+    results = _search_qdrant_with_text(query, nct_id=nct_id, k=k)
 
-    scored: List[Tuple[float, int, dict]] = []
-    for idx, chunk in enumerate(candidates):
-        score = _score_chunk(query_tokens, chunk)
-        scored.append((score, idx, chunk))
-
-    scored.sort(key=lambda entry: (-entry[0], entry[1]))
-    return [entry[2] for entry in scored[:k]]
+    return [
+        {
+            "nct_id": r.payload.get("nct_id"),
+            "section": r.payload.get("section"),
+            "text": r.payload.get("text"),
+        }
+        for r in results
+    ]
 
 
 def _collect_criteria(
