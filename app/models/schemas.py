@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 from pydantic import BaseModel
 
@@ -17,6 +17,7 @@ class Citation(BaseModel):
 class AskResponse(BaseModel):
     answer: str
     citations: List[Citation]
+    nct_id: Optional[str] = None
 
 
 class PatientProfile(BaseModel):
@@ -40,3 +41,14 @@ class TrialMetadata(BaseModel):
     title: Optional[str] = None
     trial_url: Optional[str] = None
     sections: Dict[str, str]
+
+
+FilterValue = Union[str, List[str]]
+
+
+class IngestionSummary(BaseModel):
+    study_count: int
+    query_terms: List[str]
+    filters: Dict[str, FilterValue]
+    max_studies: Optional[int] = None
+    last_updated: Optional[str] = None
