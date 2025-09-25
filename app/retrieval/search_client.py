@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 from collections import Counter
 from typing import Iterable, List, Optional, Tuple
@@ -8,6 +9,8 @@ from qdrant_client.http import exceptions as rest_exceptions
 from qdrant_client.http import models as rest
 
 from app.deps import get_settings
+
+logger = logging.getLogger(__name__)
 
 from . import trial_store
 
@@ -31,6 +34,47 @@ try:
     )
 except AttributeError:  # pragma: no cover - defensive for older clients
     _QDRANT_FILTER_EXCEPTIONS = (rest_exceptions.UnexpectedResponse,)
+
+_QDRANT_SEARCH_EXCEPTIONS: tuple[type[Exception], ...]
+try:
+    _QDRANT_SEARCH_EXCEPTIONS = (
+        rest_exceptions.ApiException,
+        rest_exceptions.ResponseHandlingException,
+    )
+except AttributeError:  # pragma: no cover - defensive for older clients
+    _QDRANT_SEARCH_EXCEPTIONS = (rest_exceptions.ResponseHandlingException,)
+
+
+def _decode_bytes(value: bytes | None) -> str | None:
+    if value is None:
+        return None
+    try:
+        return value.decode("utf-8")
+    except UnicodeDecodeError:
+        return value.decode("utf-8", errors="ignore")
+
+
+def _log_qdrant_error(exc: Exception, *, search_kind: str) -> None:
+    status_code = getattr(exc, "status_code", None)
+    reason = getattr(exc, "reason_phrase", None)
+
+    content = getattr(exc, "content", None)
+    if isinstance(content, bytes):
+        content = _decode_bytes(content)
+    elif content is None:
+        content = getattr(exc, "response_content", None)
+        if isinstance(content, bytes):
+            content = _decode_bytes(content)
+
+    message = content or reason or str(exc)
+
+    logger.error(
+        "Qdrant %s search failed (status=%s, reason=%s): %s",
+        search_kind,
+        status_code if status_code is not None else "unknown",
+        reason if reason else "unknown",
+        message,
+    )
 
 
 def _payload_matches_nct_id(payload: dict | None, nct_id: str | None) -> bool:
@@ -114,7 +158,11 @@ def _search_qdrant_with_vector(
         "with_payload": True,
     }
 
-    return _execute_qdrant_search(_client.search, kwargs=kwargs, nct_id=nct_id)
+    try:
+        return _execute_qdrant_search(_client.search, kwargs=kwargs, nct_id=nct_id)
+    except _QDRANT_SEARCH_EXCEPTIONS as exc:
+        _log_qdrant_error(exc, search_kind="vector")
+        return []
 
 
 def _search_qdrant_with_text(
@@ -144,7 +192,16 @@ def _search_qdrant_with_text(
         text_kwargs = dict(kwargs)
         text_kwargs.pop("query_text")
         text_kwargs["query"] = query
-        return _execute_qdrant_search(text_search, kwargs=text_kwargs, nct_id=nct_id)
+        try:
+            return _execute_qdrant_search(
+                text_search, kwargs=text_kwargs, nct_id=nct_id
+            )
+        except _QDRANT_SEARCH_EXCEPTIONS as exc:
+            _log_qdrant_error(exc, search_kind="text")
+            return []
+    except _QDRANT_SEARCH_EXCEPTIONS as exc:
+        _log_qdrant_error(exc, search_kind="text")
+        return []
 
 
 def _ensure_fake_index_loaded(*, force: bool = False) -> None:

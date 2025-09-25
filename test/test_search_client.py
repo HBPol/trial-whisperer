@@ -1,9 +1,57 @@
 import json
+import logging
 from types import SimpleNamespace
 
 from qdrant_client.http import exceptions as rest_exceptions
 
 from app.retrieval import search_client, trial_store
+
+
+def _build_qdrant_error(status_code: int = 500, message: str = "boom"):
+    return rest_exceptions.UnexpectedResponse(
+        status_code=status_code,
+        reason_phrase="Error",
+        content=message.encode("utf-8"),
+        headers={},
+    )
+
+
+def test_search_qdrant_with_vector_logs_error(monkeypatch, caplog):
+    class ErrorClient:
+        def search(self, *args, **kwargs):
+            raise _build_qdrant_error()
+
+    monkeypatch.setattr(search_client, "_client", ErrorClient(), raising=False)
+    monkeypatch.setattr(
+        search_client.settings, "qdrant_collection", "unit-test", raising=False
+    )
+
+    with caplog.at_level(logging.ERROR):
+        results = search_client._search_qdrant_with_vector([0.1], nct_id=None, k=3)
+
+    assert results == []
+    assert any(
+        "Qdrant vector search failed" in record.message for record in caplog.records
+    )
+
+
+def test_search_qdrant_with_text_logs_error(monkeypatch, caplog):
+    class ErrorClient:
+        def search(self, *args, **kwargs):
+            raise _build_qdrant_error(status_code=429, message="rate limit")
+
+    monkeypatch.setattr(search_client, "_client", ErrorClient(), raising=False)
+    monkeypatch.setattr(
+        search_client.settings, "qdrant_collection", "unit-test", raising=False
+    )
+
+    with caplog.at_level(logging.ERROR):
+        results = search_client._search_qdrant_with_text("query", nct_id=None, k=5)
+
+    assert results == []
+    assert any(
+        "Qdrant text search failed" in record.message for record in caplog.records
+    )
 
 
 def test_retrieve_chunks_falls_back_when_qdrant_empty(monkeypatch, tmp_path):
