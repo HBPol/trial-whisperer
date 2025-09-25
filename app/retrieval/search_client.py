@@ -252,6 +252,87 @@ def _ensure_fake_index_loaded(*, force: bool = False) -> None:
         return
 
 
+def _extract_scroll_points(response) -> List[rest.ScoredPoint]:
+    """Return a list of points from the various scroll response formats."""
+
+    if isinstance(response, tuple):
+        points = response[0]
+    elif hasattr(response, "points"):
+        points = getattr(response, "points")
+    else:
+        points = response
+
+    if points is None:
+        return []
+    return list(points)
+
+
+def _scroll_qdrant_points(nct_id: str) -> List[rest.ScoredPoint]:
+    if not _client or not settings.qdrant_collection or not nct_id:
+        return []
+
+    base_kwargs = {
+        "collection_name": settings.qdrant_collection,
+        "limit": 128,
+        "with_payload": True,
+        "with_vectors": False,
+    }
+    filter_obj = _build_query_filter(nct_id)
+    scroll_kwargs = dict(base_kwargs)
+    if filter_obj:
+        scroll_kwargs["scroll_filter"] = filter_obj
+
+    def _invoke_scroll(kwargs):
+        try:
+            return _client.scroll(**kwargs)
+        except TypeError:
+            adjusted = dict(kwargs)
+            scroll_filter = adjusted.pop("scroll_filter", None)
+            if scroll_filter is not None:
+                adjusted["filter"] = scroll_filter
+            return _client.scroll(**adjusted)
+
+    try:
+        response = _invoke_scroll(scroll_kwargs)
+    except _QDRANT_FILTER_EXCEPTIONS as exc:
+        if not filter_obj or not _is_payload_index_error(exc):
+            _log_qdrant_error(exc, search_kind="scroll")
+            return []
+        retry_kwargs = dict(base_kwargs)
+        try:
+            response = _invoke_scroll(retry_kwargs)
+        except _QDRANT_FILTER_EXCEPTIONS as retry_exc:
+            _log_qdrant_error(retry_exc, search_kind="scroll")
+            return []
+        points = _extract_scroll_points(response)
+        return _filter_points_by_nct_id(points, nct_id)
+    except _QDRANT_SEARCH_EXCEPTIONS as exc:
+        _log_qdrant_error(exc, search_kind="scroll")
+        return []
+
+    return _extract_scroll_points(response)
+
+
+def _fetch_sections_from_remote(nct_id: str) -> List[Tuple[str, str]]:
+    points = _scroll_qdrant_points(nct_id)
+    sections: List[Tuple[str, str]] = []
+
+    for point in points:
+        payload = getattr(point, "payload", None)
+        if not isinstance(payload, dict):
+            continue
+        if payload.get("nct_id") != nct_id:
+            continue
+        normalized = trial_store.normalize_section_entry(
+            payload.get("section"), payload.get("text")
+        )
+        if normalized is None:
+            continue
+        sections.append(normalized)
+
+    return sections
+
+
 def clear_fallback_index() -> None:
     """Reset the in-memory fallback index used during tests/offline mode."""
 
@@ -351,10 +432,24 @@ def retrieve_criteria_for_trial(nct_id: str) -> dict | None:
         if criteria:
             return criteria
     _ensure_fake_index_loaded()
-    return _collect_criteria(
-        (
+    sections = [
+        (chunk.get("section"), chunk.get("text"))
+        for chunk in _FAKE_INDEX
+        if chunk.get("nct_id") == nct_id
+    ]
+
+    if not sections:
+        _ensure_fake_index_loaded(force=True)
+        sections = [
             (chunk.get("section"), chunk.get("text"))
             for chunk in _FAKE_INDEX
             if chunk.get("nct_id") == nct_id
-        )
-    )
+        ]
+
+    if not sections:
+        remote_sections = _fetch_sections_from_remote(nct_id)
+        if remote_sections:
+            return _collect_criteria(remote_sections)
+        return None
+
+    return _collect_criteria(sections)
