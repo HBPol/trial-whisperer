@@ -256,19 +256,22 @@ p {
 
 .suggestions {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
     gap: 0.6rem;
 }
 
 .suggestion {
-    padding: 0.75rem 1rem;
+    padding: 0.55rem 0.95rem;
     border-radius: 16px;
     border: 1px solid var(--border);
     background: transparent;
     text-align: left;
     font-size: 0.9rem;
     color: var(--text);
-    line-height: 1.35;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     cursor: pointer;
     transition: background 150ms ease, color 150ms ease, border-color 150ms ease, transform 150ms ease;
 }
