@@ -109,12 +109,13 @@ def test_retrieve_chunks_recovers_when_payload_index_missing(monkeypatch):
         def search(self, *args, **kwargs):
             self.calls.append({"args": args, "kwargs": dict(kwargs)})
             if kwargs.get("query_filter") is not None:
-                raise rest_exceptions.UnexpectedResponse(
-                    status_code=400,
-                    reason_phrase="Bad Request",
-                    content=b'{"status": {"error": "Payload index is missing"}}',
-                    headers={},
+                exc = rest_exceptions.ApiException(
+                    "Strict mode index required but not found"
                 )
+                exc.status_code = 400
+                exc.reason_phrase = "Bad Request"
+                exc.content = b'{"status": {"error": "Index required but not found"}}'
+                raise exc
 
             return [
                 SimpleNamespace(

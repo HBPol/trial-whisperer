@@ -52,6 +52,7 @@ def _embed_query(query: str) -> List[float]:
 _QDRANT_FILTER_EXCEPTIONS: tuple[type[Exception], ...]
 try:
     _QDRANT_FILTER_EXCEPTIONS = (
+        rest_exceptions.ApiException,
         rest_exceptions.UnexpectedResponse,
         rest_exceptions.ResponseHandlingException,
     )
@@ -124,7 +125,11 @@ def _is_payload_index_error(exc: Exception) -> bool:
 
     message_parts.append(str(exc))
     combined = " ".join(part for part in message_parts if part)
-    return "payload index" in combined.lower()
+    combined_lower = combined.lower()
+    return (
+        "payload index" in combined_lower
+        or "index required but not found" in combined_lower
+    )
 
 
 def _build_query_filter(nct_id: Optional[str]) -> rest.Filter | None:
