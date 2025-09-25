@@ -4,6 +4,7 @@ from collections import Counter
 from typing import Iterable, List, Optional, Tuple
 
 from qdrant_client import QdrantClient
+from qdrant_client.http import exceptions as rest_exceptions
 from qdrant_client.http import models as rest
 
 from app.deps import get_settings
@@ -20,6 +21,130 @@ if settings.retrieval_backend == "qdrant" and settings.qdrant_url:
 _FAKE_INDEX: List[dict] = []
 _FALLBACK_INDEX_INITIALIZED = False
 _TOKEN_PATTERN = re.compile(r"[a-z0-9]+", re.IGNORECASE)
+
+
+_QDRANT_FILTER_EXCEPTIONS: tuple[type[Exception], ...]
+try:
+    _QDRANT_FILTER_EXCEPTIONS = (
+        rest_exceptions.UnexpectedResponse,
+        rest_exceptions.ResponseHandlingException,
+    )
+except AttributeError:  # pragma: no cover - defensive for older clients
+    _QDRANT_FILTER_EXCEPTIONS = (rest_exceptions.UnexpectedResponse,)
+
+
+def _payload_matches_nct_id(payload: dict | None, nct_id: str | None) -> bool:
+    if not nct_id:
+        return True
+    if not isinstance(payload, dict):
+        return False
+    return payload.get("nct_id") == nct_id
+
+
+def _is_payload_index_error(exc: Exception) -> bool:
+    """Detect whether the raised exception is caused by a payload index error."""
+
+    message_parts: List[str] = []
+
+    content = getattr(exc, "content", None)
+    if isinstance(content, bytes):
+        try:
+            message_parts.append(content.decode("utf-8"))
+        except UnicodeDecodeError:
+            message_parts.append(content.decode("utf-8", errors="ignore"))
+    elif content:
+        message_parts.append(str(content))
+
+    message_parts.append(str(exc))
+    combined = " ".join(part for part in message_parts if part)
+    return "payload index" in combined.lower()
+
+
+def _build_query_filter(nct_id: Optional[str]) -> rest.Filter | None:
+    if not nct_id:
+        return None
+    return rest.Filter(
+        must=[rest.FieldCondition(key="nct_id", match=rest.MatchValue(value=nct_id))]
+    )
+
+
+def _filter_points_by_nct_id(
+    points: Iterable[rest.ScoredPoint],
+    nct_id: Optional[str],
+) -> List[rest.ScoredPoint]:
+    if not nct_id:
+        return list(points)
+    return [point for point in points if _payload_matches_nct_id(point.payload, nct_id)]
+
+
+def _execute_qdrant_search(
+    search_callable,
+    *,
+    kwargs: dict,
+    nct_id: Optional[str],
+) -> List[rest.ScoredPoint]:
+    query_filter = kwargs.get("query_filter")
+
+    try:
+        return list(search_callable(**kwargs))
+    except _QDRANT_FILTER_EXCEPTIONS as exc:
+        if not query_filter or not _is_payload_index_error(exc):
+            raise
+
+        retry_kwargs = dict(kwargs)
+        retry_kwargs["query_filter"] = None
+        results = list(search_callable(**retry_kwargs))
+        return _filter_points_by_nct_id(results, nct_id)
+
+
+def _search_qdrant_with_vector(
+    vector: Iterable[float],
+    *,
+    nct_id: Optional[str],
+    k: int,
+) -> List[rest.ScoredPoint]:
+    if not _client or not settings.qdrant_collection:
+        return []
+
+    kwargs = {
+        "collection_name": settings.qdrant_collection,
+        "query_vector": vector,
+        "limit": k,
+        "query_filter": _build_query_filter(nct_id),
+        "with_payload": True,
+    }
+
+    return _execute_qdrant_search(_client.search, kwargs=kwargs, nct_id=nct_id)
+
+
+def _search_qdrant_with_text(
+    query: str,
+    *,
+    nct_id: Optional[str],
+    k: int,
+) -> List[rest.ScoredPoint]:
+    if not _client or not settings.qdrant_collection:
+        return []
+
+    kwargs = {
+        "collection_name": settings.qdrant_collection,
+        "query_text": query,
+        "limit": k,
+        "query_filter": _build_query_filter(nct_id),
+        "with_payload": True,
+    }
+
+    try:
+        return _execute_qdrant_search(_client.search, kwargs=kwargs, nct_id=nct_id)
+    except TypeError:
+        text_search = getattr(_client, "text_search", None)
+        if not text_search:
+            return []
+
+        text_kwargs = dict(kwargs)
+        text_kwargs.pop("query_text")
+        text_kwargs["query"] = query
+        return _execute_qdrant_search(text_search, kwargs=text_kwargs, nct_id=nct_id)
 
 
 def _ensure_fake_index_loaded(*, force: bool = False) -> None:
@@ -104,41 +229,7 @@ def retrieve_chunks(query: str, nct_id: Optional[str] = None, k: int = 8) -> Lis
     """
     fallback_force = False
     if _client and settings.qdrant_collection:
-        # Basic text search in Qdrant.  ``query_text`` performs on-the-fly
-        # embedding using the configured text2vec model within Qdrant.
-        query_filter = None
-        if nct_id:
-            query_filter = rest.Filter(
-                must=[
-                    rest.FieldCondition(
-                        key="nct_id", match=rest.MatchValue(value=nct_id)
-                    )
-                ]
-            )
-
-        try:
-            results = _client.search(
-                collection_name=settings.qdrant_collection,
-                query_text=query,
-                limit=k,
-                query_filter=query_filter,
-                with_payload=True,
-            )
-        except TypeError:
-            # Some versions of the client may not support ``query_text``.
-            # Try using ``text_search`` if available; otherwise fall back to
-            # the in-memory index handled later.
-            text_search = getattr(_client, "text_search", None)
-            if text_search:
-                results = text_search(
-                    collection_name=settings.qdrant_collection,
-                    query=query,
-                    limit=k,
-                    query_filter=query_filter,
-                    with_payload=True,
-                )
-            else:
-                results = []
+        results = _search_qdrant_with_text(query, nct_id=nct_id, k=k)
 
         if results:
             return [
