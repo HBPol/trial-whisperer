@@ -17,15 +17,10 @@
                     </div>
                 </div>
                 <div class="header-actions">
-                    <button type="button" id="theme-toggle" class="button ghost" aria-pressed="false">
-                        <span class="theme-icon" aria-hidden="true"></span>
-                        <span class="toggle-label">Dark mode</span>
-                    </button>
                     <button type="button" id="new-chat-button" class="button subtle">New chat</button>
                 </div>
             </header>
             <main class="chat-shell">
-                <section class="conversation" id="answers" aria-live="polite" aria-label="Answer stream"></section>
                 <section class="composer" aria-label="Ask a new question">
                     <form id="ask-form">
                         <label class="input-wrapper" for="query">
@@ -38,10 +33,13 @@
                     </form>
                     <p id="status" role="status" aria-live="polite" class="status-message"></p>
                     <div class="suggestions" aria-label="Suggested prompts">
-                        <button type="button" class="suggestion" data-query="What are the eligibility criteria for NCT05879250?">Eligibility criteria</button>
-                        <button type="button" class="suggestion" data-query="Summarize the outcomes reported for trial NCT05197322.">Summarize outcomes</button>
+                        <button type="button" class="suggestion" data-query="Summarize the eligibility criteria for NCT05941234">Eligibility criteria</button>
+                        <button type="button" class="suggestion" data-query="Summarize the outcomes reported for trial NCT06954636">Summarize outcomes</button>
+                        <button type="button" class="suggestion" data-query="What outcome measure tracks the MRI sequence program in NCT06041555?">What outcome measure tracks the MRI sequence program in NCT06041555?</button>
+                        <button type="button" class="suggestion" data-query="What hypofractionated approach is being tested against conventional radiotherapy in NCT06740955?">What hypofractionated approach is being tested against conventional radiotherapy in NCT06740955?</button>
                     </div>
                 </section>
+                <section class="conversation" id="answers" aria-live="polite" aria-label="Answer stream"></section>
             </main>
         </div>
         <script src="/app.js"></script>

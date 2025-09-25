@@ -4,7 +4,6 @@ const askButton = document.getElementById('ask-button');
 const status = document.getElementById('status');
 const queryInput = document.getElementById('query');
 const newChatButton = document.getElementById('new-chat-button');
-const themeToggleButton = document.getElementById('theme-toggle');
 const suggestionButtons = document.querySelectorAll('[data-query]');
 const CTGOV_STUDY_BASE_URL = 'https://clinicaltrials.gov/study/';
 const NCT_ID_PATTERN = /\bNCT\d{8}\b/i;
@@ -75,38 +74,6 @@ const clearConversation = () => {
     updateNewChatState();
 };
 
-const setTheme = (theme) => {
-    document.body.dataset.theme = theme;
-    if (themeToggleButton) {
-        const isDark = theme === 'dark';
-        themeToggleButton.setAttribute('aria-pressed', String(isDark));
-        const label = isDark ? 'Light mode' : 'Dark mode';
-        const labelSpan = themeToggleButton.querySelector('.toggle-label');
-        if (labelSpan) {
-            labelSpan.textContent = label;
-        }
-    }
-    window.localStorage.setItem('trialwhisperer-theme', theme);
-};
-
-const initializeTheme = () => {
-    if (!themeToggleButton) {
-        return;
-    }
-    const savedTheme = window.localStorage.getItem('trialwhisperer-theme');
-    if (savedTheme === 'dark' || savedTheme === 'light') {
-        setTheme(savedTheme);
-    } else {
-        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        setTheme(prefersDark ? 'dark' : 'light');
-    }
-
-    themeToggleButton.addEventListener('click', () => {
-        const nextTheme = document.body.dataset.theme === 'dark' ? 'light' : 'dark';
-        setTheme(nextTheme);
-    });
-};
-
 if (newChatButton) {
     newChatButton.addEventListener('click', clearConversation);
     updateNewChatState();
@@ -128,8 +95,6 @@ if (suggestionButtons.length > 0) {
     });
 }
 
-initializeTheme();
-
 form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const query = queryInput.value.trim();
@@ -149,7 +114,7 @@ form.addEventListener('submit', async (e) => {
     }
 
     setLoadingState(true);
-    status.textContent = 'Searching for relevant trials...';
+    status.textContent = 'Searching...';
 
     try {
         const res = await fetch('/ask/', {
