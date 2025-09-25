@@ -5,10 +5,206 @@ const status = document.getElementById('status');
 const queryInput = document.getElementById('query');
 const newChatButton = document.getElementById('new-chat-button');
 const suggestionButtons = document.querySelectorAll('[data-query]');
+const ingestionSummaryText = document.getElementById('ingestion-summary-text');
+const ingestionInfoOpenButton = document.getElementById('ingestion-info-open');
+const ingestionInfoDialog = document.getElementById('ingestion-info-dialog');
+const ingestionInfoList = document.getElementById('ingestion-info-list');
+const ingestionInfoCloseButton = document.getElementById('ingestion-info-close');
+const ingestionInfoDismissButton = document.getElementById('ingestion-info-dismiss');
+const ingestionInfoUpdated = document.getElementById('ingestion-info-updated');
+const ingestionInfoIntro = document.getElementById('ingestion-info-intro');
+const supportsDialog = ingestionInfoDialog && typeof ingestionInfoDialog.showModal === 'function';
+let hasAutoShownIngestionDialog = false;
 const CTGOV_STUDY_BASE_URL = 'https://clinicaltrials.gov/study/';
 const NCT_ID_PATTERN = /\bNCT\d{8}\b/i;
 
 let lastNctId = null;
+
+const numberFormatter = new Intl.NumberFormat();
+
+const closeIngestionDialog = () => {
+    if (ingestionInfoDialog && ingestionInfoDialog.open) {
+        ingestionInfoDialog.close();
+    }
+};
+
+const openIngestionDialog = ({ auto = false } = {}) => {
+    if (!supportsDialog || !ingestionInfoDialog) {
+        return;
+    }
+    if (!ingestionInfoDialog.open) {
+        ingestionInfoDialog.showModal();
+    }
+    if (auto || !hasAutoShownIngestionDialog) {
+        hasAutoShownIngestionDialog = true;
+    }
+};
+
+const maybeAutoShowIngestionDialog = () => {
+    if (!supportsDialog || hasAutoShownIngestionDialog) {
+        return;
+    }
+    openIngestionDialog({ auto: true });
+};
+
+if (ingestionInfoDialog && supportsDialog) {
+    ingestionInfoDialog.addEventListener('cancel', (event) => {
+        event.preventDefault();
+        closeIngestionDialog();
+    });
+}
+
+if (ingestionInfoOpenButton) {
+    if (supportsDialog) {
+        ingestionInfoOpenButton.hidden = false;
+        ingestionInfoOpenButton.addEventListener('click', () => openIngestionDialog());
+    } else {
+        ingestionInfoOpenButton.hidden = true;
+    }
+}
+
+if (ingestionInfoCloseButton) {
+    ingestionInfoCloseButton.addEventListener('click', closeIngestionDialog);
+}
+
+if (ingestionInfoDismissButton) {
+    ingestionInfoDismissButton.addEventListener('click', closeIngestionDialog);
+}
+
+const updateIngestionSummary = (summary) => {
+    if (!summary || typeof summary !== 'object') {
+        if (ingestionSummaryText) {
+            ingestionSummaryText.textContent = 'TrialWhisperer demo: dataset details unavailable.';
+        }
+        if (ingestionInfoList) {
+            ingestionInfoList.innerHTML = '';
+            const li = document.createElement('li');
+            li.textContent = 'Dataset metadata could not be loaded.';
+            ingestionInfoList.appendChild(li);
+        }
+        if (ingestionInfoUpdated) {
+            ingestionInfoUpdated.hidden = true;
+            ingestionInfoUpdated.textContent = '';
+        }
+        return;
+    }
+
+    const studyCount = typeof summary.study_count === 'number' ? summary.study_count : null;
+    const queryTerms = Array.isArray(summary.query_terms)
+        ? summary.query_terms.filter((item) => typeof item === 'string' && item.trim().length > 0)
+        : [];
+    const filters = summary.filters && typeof summary.filters === 'object' ? summary.filters : {};
+    const maxStudies = typeof summary.max_studies === 'number' ? summary.max_studies : null;
+
+    if (ingestionInfoList) {
+        ingestionInfoList.innerHTML = '';
+        const addItem = (label, value) => {
+            if (!value) {
+                return;
+            }
+            const item = document.createElement('li');
+            const strong = document.createElement('strong');
+            strong.textContent = `${label}: `;
+            item.appendChild(strong);
+            item.appendChild(document.createTextNode(value));
+            ingestionInfoList.appendChild(item);
+        };
+
+        if (typeof studyCount === 'number') {
+            addItem('Studies indexed', numberFormatter.format(studyCount));
+        }
+        if (queryTerms.length > 0) {
+            addItem('Query terms', queryTerms.join(', '));
+        }
+
+        const filterEntries = Object.entries(filters).filter(([, value]) => {
+            if (Array.isArray(value)) {
+                return value.length > 0;
+            }
+            return Boolean(value);
+        });
+        if (filterEntries.length > 0) {
+            const filterDescriptions = filterEntries.map(([key, value]) => {
+                if (Array.isArray(value)) {
+                    return `${key} = ${value.join(', ')}`;
+                }
+                return `${key} = ${value}`;
+            });
+            addItem('Filters', filterDescriptions.join('; '));
+        }
+
+        if (maxStudies !== null) {
+            addItem('Maximum studies requested', numberFormatter.format(maxStudies));
+        }
+    }
+
+    if (ingestionSummaryText) {
+        const parts = [];
+        if (typeof studyCount === 'number') {
+            parts.push(
+                `${numberFormatter.format(studyCount)} ${studyCount === 1 ? 'study' : 'studies'}`,
+            );
+        }
+        if (queryTerms.length > 0) {
+            parts.push(`query: ${queryTerms.join(', ')}`);
+        }
+        if (parts.length > 0) {
+            ingestionSummaryText.textContent = `Demo dataset – ${parts.join(' • ')}`;
+        } else {
+            ingestionSummaryText.textContent = 'TrialWhisperer demo: dataset details unavailable.';
+        }
+    }
+
+    if (ingestionInfoIntro) {
+        if (queryTerms.length > 0) {
+            const label = queryTerms.length > 1 ? 'query terms' : 'query term';
+            ingestionInfoIntro.textContent =
+                `TrialWhisperer is running in demo mode with a limited dataset from ClinicalTrials.gov. It only knows about studies matching the ${label} ${queryTerms.join(', ')}.`;
+        } else {
+            ingestionInfoIntro.textContent =
+                'TrialWhisperer is running in demo mode with a limited dataset. The assistant only knows about the studies described below.';
+        }
+    }
+
+    if (ingestionInfoUpdated) {
+        const timestamp = typeof summary.last_updated === 'string' ? summary.last_updated : null;
+        if (timestamp) {
+            const parsed = new Date(timestamp);
+            if (!Number.isNaN(parsed.getTime())) {
+                ingestionInfoUpdated.textContent = `Dataset last updated ${parsed.toLocaleString()}`;
+                ingestionInfoUpdated.hidden = false;
+            } else {
+                ingestionInfoUpdated.hidden = true;
+            }
+        } else {
+            ingestionInfoUpdated.hidden = true;
+        }
+    }
+};
+
+const fetchIngestionSummary = async () => {
+    if (!ingestionSummaryText) {
+        return;
+    }
+
+    try {
+        const response = await fetch('/metadata/ingestion-summary');
+        if (!response.ok) {
+            throw new Error(`Unexpected response: ${response.status}`);
+        }
+        const payload = await response.json();
+        updateIngestionSummary(payload);
+        maybeAutoShowIngestionDialog();
+    } catch (error) {
+        updateIngestionSummary(null);
+        if (supportsDialog) {
+            maybeAutoShowIngestionDialog();
+        }
+        console.error('Failed to load ingestion summary', error);
+    }
+};
+
+fetchIngestionSummary();
 
 const setLoadingState = (isLoading) => {
     askButton.disabled = isLoading;

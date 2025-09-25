@@ -5,14 +5,14 @@
 **Objective:**  
 Build a specialized chatbot that allows researchers and clinicians to quickly query **clinical trial protocols** (focusing on inclusion/exclusion criteria, outcomes, interventions) sourced from **ClinicalTrials.gov**. The system should leverage a **retrieval-augmented generation (RAG) pipeline** over publicly available trial XML data.  
 
-**Innovation (MVP scope):**  
+**MVP scope:**  
 Beyond general Q&A, the chatbot will support an **Eligibility Criteria Checker**: given a structured patient profile (age, gender, basic lab values), it will answer *“Would this patient likely qualify for trial NCTxxxxxx?”*  
 
 **Target Users:**  
 - Clinical researchers screening trials.  
 - Scientific teams comparing protocol criteria.  
 
-**Tech Stack (preferred):**  
+**Tech Stack:**  
 - **Python**: FastAPI for backend.  
 - **Data Engineering**: XML parsing, normalization, chunking.  
 - **Vector Database**: Qdrant Cloud (free tier, 1GB) or Vertex AI Search.  

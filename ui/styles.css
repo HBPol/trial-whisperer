@@ -284,6 +284,143 @@ p {
     transform: translateY(-1px);
 }
 
+.app-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem clamp(1.25rem, 3vw, 1.75rem);
+    background: var(--surface-muted);
+    border-top: 1px solid var(--border);
+}
+
+.footer-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.footer-text {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
+
+.link-button {
+    background: none;
+    border: none;
+    color: var(--accent-strong);
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    padding: 0;
+    text-decoration: underline;
+}
+
+.link-button:hover,
+.link-button:focus-visible {
+    color: var(--accent);
+}
+
+.footer-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.footer-link:hover,
+.footer-link:focus-visible {
+    color: var(--accent-strong);
+}
+
+.footer-icon svg {
+    width: 1.1rem;
+    height: 1.1rem;
+    display: block;
+    fill: currentColor;
+}
+
+dialog {
+    border: none;
+    border-radius: 20px;
+    padding: 0;
+    background: var(--surface);
+    color: var(--text);
+    max-width: min(480px, 90vw);
+    width: 100%;
+    box-shadow: var(--shadow-lg);
+}
+
+dialog::backdrop {
+    background: rgba(15, 23, 42, 0.35);
+    backdrop-filter: blur(2px);
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.5rem 1.5rem 1rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.modal-body {
+    padding: 1rem 1.5rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+}
+
+.dialog-close {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 999px;
+    border: none;
+    background: transparent;
+    font-size: 1.4rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    line-height: 1;
+}
+
+.dialog-close:hover,
+.dialog-close:focus-visible {
+    background: rgba(15, 23, 42, 0.05);
+    color: var(--text);
+}
+
+.info-list {
+    margin: 0;
+    padding-left: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    color: var(--text-muted);
+}
+
+.info-list strong {
+    color: var(--text);
+}
+
+.modal-footnote {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin: 0;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.modal-actions .button {
+    min-width: 0;
+    padding: 0.6rem 1.25rem;
+}
+
 .spinner {
     width: 1.1rem;
     height: 1.1rem;
@@ -336,5 +473,11 @@ p {
 
     .button.primary {
         width: 100%;
+    }
+
+    .app-footer {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.75rem;
     }
 }
