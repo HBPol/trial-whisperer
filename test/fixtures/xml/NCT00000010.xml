@@ -1,0 +1,24 @@
+<clinical_study>
+      <id_info>
+        <nct_id>NCT00000010</nct_id>
+      </id_info>
+      <brief_title>Trial 10</brief_title>
+      <condition>Condition 10</condition>
+      <intervention>
+        <intervention_type>Drug</intervention_type>
+        <intervention_name>Drug 10</intervention_name>
+      </intervention>
+      <eligibility>
+        <criteria>
+          <textblock>Inclusion Criteria:
+- Eligible for trial 10
+
+Exclusion Criteria:
+- Not eligible for trial 10</textblock>
+        </criteria>
+      </eligibility>
+      <primary_outcome>
+        <measure>Outcome 10</measure>
+        <time_frame>1 year</time_frame>
+      </primary_outcome>
+    </clinical_study>

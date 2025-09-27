@@ -1,0 +1,24 @@
+<clinical_study>
+      <id_info>
+        <nct_id>NCT00000005</nct_id>
+      </id_info>
+      <brief_title>Trial 5</brief_title>
+      <condition>Condition 5</condition>
+      <intervention>
+        <intervention_type>Drug</intervention_type>
+        <intervention_name>Drug 5</intervention_name>
+      </intervention>
+      <eligibility>
+        <criteria>
+          <textblock>Inclusion Criteria:
+- Eligible for trial 5
+
+Exclusion Criteria:
+- Not eligible for trial 5</textblock>
+        </criteria>
+      </eligibility>
+      <primary_outcome>
+        <measure>Outcome 5</measure>
+        <time_frame>1 year</time_frame>
+      </primary_outcome>
+    </clinical_study>

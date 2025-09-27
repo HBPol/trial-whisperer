@@ -1,0 +1,859 @@
+import json
+
+from fastapi.testclient import TestClient
+
+from app.agents import tools
+from app.main import app
+from app.retrieval import search_client, trial_store
+from app.routers import qa
+from eval.eval import answer_exact_match, citations_match
+
+client = TestClient(app)
+
+
+def _load_index() -> None:
+    path = trial_store.get_trials_data_path()
+    with path.open("r", encoding="utf-8") as f:
+        search_client.clear_fallback_index()
+        search_client._FAKE_INDEX = [json.loads(line) for line in f]
+
+
+def test_ask_returns_answer_and_citations():
+    _load_index()
+    sample_id = search_client._FAKE_INDEX[0]["nct_id"]
+    response = client.post(
+        "/ask/", json={"query": "What is this study?", "nct_id": sample_id}
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data.get("answer"), str)
+    assert data["answer"]
+    assert not data["answer"].startswith("[LLM error]")
+    assert "citations" in data and isinstance(data["citations"], list)
+    assert len(data["citations"]) >= 1
+    citation = data["citations"][0]
+    assert {"nct_id", "section", "text_snippet"} <= citation.keys()
+    assert data["nct_id"] == sample_id
+
+
+def test_ask_extracts_nct_id_from_query(monkeypatch):
+    _load_index()
+    expected_id = search_client._FAKE_INDEX[0]["nct_id"]
+
+    sample_chunk = {"nct_id": expected_id, "section": "Summary", "text": "Details."}
+
+    def _fake_retrieve_chunks(query, nct_id):
+        assert nct_id == expected_id
+        return [sample_chunk]
+
+    def _fake_call_llm(query, chunks):
+        return "Details.", [sample_chunk]
+
+    monkeypatch.setattr(qa, "retrieve_chunks", _fake_retrieve_chunks)
+    monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
+
+    response = client.post("/ask/", json={"query": f"Summarise {expected_id}"})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["citations"][0]["nct_id"] == expected_id
+    assert data["nct_id"] == expected_id
+
+
+def test_ask_requires_query():
+    _load_index()
+    sample_id = search_client._FAKE_INDEX[0]["nct_id"]
+    for payload in (
+        {"query": "", "nct_id": sample_id},
+        {"nct_id": sample_id},
+    ):
+        response = client.post("/ask/", json=payload)
+        assert response.status_code == 400
+
+
+def test_ask_requires_nct_id_if_missing():
+    _load_index()
+    response = client.post("/ask/", json={"query": "Tell me about this study."})
+    assert response.status_code == 400
+    data = response.json()
+    assert data["detail"] == "An NCT ID is required to answer this question."
+
+
+def test_ask_strips_citation_markers(monkeypatch):
+    _load_index()
+    sample_id = search_client._FAKE_INDEX[0]["nct_id"]
+
+    raw_answer = (
+        "Answer: Based on the provided context, the study enrolls 120 participants. (1)"
+    )
+    fake_citations = [
+        {"nct_id": sample_id, "section": "Overview", "text": "Enrollment is 120."}
+    ]
+
+    def _fake_call_llm(query, chunks):
+        return raw_answer, fake_citations
+
+    monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
+
+    response = client.post(
+        "/ask/",
+        json={"query": "How many participants are in the study?", "nct_id": sample_id},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    expected_answer = "The study enrolls 120 participants."
+    assert data["answer"].lower() == expected_answer.lower()
+    assert "(1)" not in data["answer"]
+    assert data["answer"].lower().startswith("the study")
+    assert answer_exact_match(data["answer"], [expected_answer])
+
+
+def test_prepare_answer_trims_official_title_wrapper(monkeypatch):
+    sample_chunk = {
+        "nct_id": "NCT04440358",
+        "section": "Title",
+        "text": (
+            "Assessment of Safety and Feasibility of Exablate Blood-Brain Barrier "
+            "Disruption (BBBD) With Microbubbles for the Treatment of Recurrent "
+            "Glioblastoma (rGBM) in Subjects Undergoing Carboplatin Monotherapy"
+        ),
+    }
+
+    def _fake_retrieve_chunks(query, nct_id):
+        return [sample_chunk]
+
+    def _fake_call_llm(query, chunks):
+        raw_answer = (
+            "The official title of NCT04440358 is "
+            '"Assessment of Safety and Feasibility of Exablate Blood-Brain Barrier '
+            "Disruption (BBBD) With Microbubbles for the Treatment of Recurrent "
+            'Glioblastoma (rGBM) in Subjects Undergoing Carboplatin Monotherapy"'
+        )
+        return raw_answer, [sample_chunk]
+
+    monkeypatch.setattr(qa, "retrieve_chunks", _fake_retrieve_chunks)
+    monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
+
+    response = client.post(
+        "/ask/",
+        json={
+            "query": "What is the official title of NCT04440358?",
+            "nct_id": "NCT04440358",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    expected = sample_chunk["text"]
+    assert data["answer"] == expected
+    assert answer_exact_match(data["answer"], [expected])
+
+
+def test_answer_alignment_restores_context_span(monkeypatch):
+    sample_chunk = {
+        "nct_id": "NCTALIGN01",
+        "section": "Eligibility.Inclusion",
+        "text": "Eligible patients must be at least 18 years of age.",
+    }
+
+    def _fake_retrieve_chunks(query, nct_id):
+        return [sample_chunk]
+
+    def _fake_call_llm(query, chunks):
+        return "At least 18 years of age.", [sample_chunk]
+
+    monkeypatch.setattr(qa, "retrieve_chunks", _fake_retrieve_chunks)
+    monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
+
+    response = client.post(
+        "/ask/",
+        json={"query": "What is the minimum age?", "nct_id": "NCTALIGN01"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["answer"] == sample_chunk["text"]
+
+
+def test_answer_alignment_preserves_exact_gold_answer(monkeypatch):
+    sample_chunk = {
+        "nct_id": "NCTALIGN02",
+        "section": "Arms",
+        "text": "The investigational drug is pembrolizumab.",
+    }
+
+    def _fake_retrieve_chunks(query, nct_id):
+        return [sample_chunk]
+
+    def _fake_call_llm(query, chunks):
+        return "Pembrolizumab.", [sample_chunk]
+
+    monkeypatch.setattr(qa, "retrieve_chunks", _fake_retrieve_chunks)
+    monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
+
+    response = client.post(
+        "/ask/",
+        json={"query": "What is the study drug?", "nct_id": "NCTALIGN02"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["answer"] == "Pembrolizumab."
+
+
+def test_answer_alignment_expands_truncated_sentence(monkeypatch):
+    sample_chunk = {
+        "nct_id": "NCTALIGN03",
+        "section": "Eligibility.Inclusion",
+        "text": (
+            "Eligible patients must be at least 18 years of age. "
+            "Participants also need adequate organ function."
+        ),
+    }
+
+    def _fake_retrieve_chunks(query, nct_id):
+        return [sample_chunk]
+
+    def _fake_call_llm(query, chunks):
+        return "At least 18 years of age.", [sample_chunk]
+
+    monkeypatch.setattr(qa, "retrieve_chunks", _fake_retrieve_chunks)
+    monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
+
+    response = client.post(
+        "/ask/",
+        json={"query": "What is the minimum age?", "nct_id": "NCTALIGN03"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    expected = "Eligible patients must be at least 18 years of age."
+    assert data["answer"] == expected
+
+
+def test_alignment_expands_patient_label_clause(monkeypatch):
+    sample_chunk = {
+        "nct_id": "NCT06051214",
+        "section": "Eligibility.Exclusion",
+        "text": (
+            "1. Patient who has had a VTE in the 12 months preceding the diagnosis of "
+            "cancer, 2. Patient on low molecular weight heparins, standard "
+            "unfractionated heparins and anti-vitamin K2, 3. Women who are pregnant, "
+            "likely to become pregnant or who are breast-feeding, 4. Persons deprived "
+            "of their liberty, under court protection, under curators or under the "
+            "authority of a guardian, 5. Unable to undergo medical monitoring of the "
+            "trial for geographical, social or psychological reasons."
+        ),
+    }
+
+    def _fake_retrieve_chunks(query, nct_id):
+        return [sample_chunk]
+
+    def _fake_call_llm(query, chunks):
+        answer = (
+            "low molecular weight heparins, standard unfractionated heparins and "
+            "anti-vitamin K2."
+        )
+        return answer, [sample_chunk]
+
+    monkeypatch.setattr(qa, "retrieve_chunks", _fake_retrieve_chunks)
+    monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
+
+    response = client.post(
+        "/ask/",
+        json={
+            "query": "Which anticoagulant therapies exclude someone from NCT06051214?",
+            "nct_id": "NCT06051214",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    expected = (
+        "Patient on low molecular weight heparins, standard unfractionated "
+        "heparins and anti-vitamin K2"
+    )
+    assert data["answer"] == expected
+
+
+def test_alignment_restores_numbered_biopsy_clause(monkeypatch):
+    sample_chunk = {
+        "nct_id": "NCT05386043",
+        "section": "Eligibility.Inclusion",
+        "text": (
+            "1. Subject is between 18 and 89 years of age. 2. Subject has "
+            "radiologically-diagnosed or suspected WHO Grade II-IV glioma based on "
+            "physician review or conformance with published WHO criteria as evaluated "
+            "by the PI*. 3. Subject is treatment-naïve with the exception of previous "
+            "biopsy for the above condition. 4. Subject is planning to undergo surgical "
+            "resection and biopsy of their brain tumor. 5. Subject has sufficient tissue "
+            "so that the study team is able to acquire at least 2 biopsy samples during "
+            "resection. 6. Subject is able to read and write in English."
+        ),
+    }
+
+    def _fake_retrieve_chunks(query, nct_id):
+        return [sample_chunk]
+
+    def _fake_call_llm(query, chunks):
+        return "Able to acquire at least 2 biopsy samples during resection.", [
+            sample_chunk
+        ]
+
+    monkeypatch.setattr(qa, "retrieve_chunks", _fake_retrieve_chunks)
+    monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
+
+    response = client.post(
+        "/ask/",
+        json={
+            "query": "How many biopsy samples must be obtainable during surgery?",
+            "nct_id": "NCT05386043",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    expected = (
+        "Subject has sufficient tissue so that the study team is able to acquire at "
+        "least 2 biopsy samples during resection."
+    )
+    assert data["answer"] == expected
+
+
+def test_alignment_includes_hypofractionated_label(monkeypatch):
+    sample_chunk = {
+        "nct_id": "NCT06740955",
+        "section": "Interventions",
+        "text": (
+            "RADIATION: hypofractionated postoperative radiotherapy RADIATION: "
+            "Conventionally fractionated postoperative radiotherapy"
+        ),
+    }
+
+    def _fake_retrieve_chunks(query, nct_id):
+        return [sample_chunk]
+
+    def _fake_call_llm(query, chunks):
+        return "hypofractionated postoperative radiotherapy", [sample_chunk]
+
+    monkeypatch.setattr(qa, "retrieve_chunks", _fake_retrieve_chunks)
+    monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
+
+    response = client.post(
+        "/ask/",
+        json={
+            "query": "What hypofractionated approach is being tested?",
+            "nct_id": "NCT06740955",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    expected = "RADIATION: hypofractionated postoperative radiotherapy"
+    assert data["answer"] == expected
+
+
+def test_alignment_returns_pet_tracer_label(monkeypatch):
+    sample_chunk = {
+        "nct_id": "NCT06113705",
+        "section": "Interventions",
+        "text": (
+            "DIAGNOSTIC_TEST: 18F-GE-180 PET DIAGNOSTIC_TEST: Advanced MRI OTHER: "
+            "Collection of hematopoietic stem cells"
+        ),
+    }
+
+    def _fake_retrieve_chunks(query, nct_id):
+        return [sample_chunk]
+
+    def _fake_call_llm(query, chunks):
+        return "18F-GE-180 PET", [sample_chunk]
+
+    monkeypatch.setattr(qa, "retrieve_chunks", _fake_retrieve_chunks)
+    monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
+
+    response = client.post(
+        "/ask/",
+        json={
+            "query": "Which PET tracer is collected as part of the regimen?",
+            "nct_id": "NCT06113705",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    expected = "DIAGNOSTIC_TEST: 18F-GE-180 PET"
+    assert data["answer"] == expected
+
+
+def test_alignment_captures_fgfr_requirement(monkeypatch):
+    sample_chunk = {
+        "nct_id": "NCT06308822",
+        "section": "Eligibility.Inclusion",
+        "text": (
+            "Patients must meet the disease requirements as outlined in MATCH Master "
+            "Protocol at the time of registration to treatment step (Step 1, 3, 5, 7). "
+            "Patients must have FGFR Amplification as determined via the MATCH Master "
+            "Protocol. Patients must have an electrocardiogram (ECG) within 8 weeks "
+            "prior to treatment."
+        ),
+    }
+
+    def _fake_retrieve_chunks(query, nct_id):
+        return [sample_chunk]
+
+    def _fake_call_llm(query, chunks):
+        return "FGFR Amplification as determined via the MATCH Master Protocol.", [
+            sample_chunk
+        ]
+
+    monkeypatch.setattr(qa, "retrieve_chunks", _fake_retrieve_chunks)
+    monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
+
+    response = client.post(
+        "/ask/",
+        json={
+            "query": "What biomarker must patients carry?",
+            "nct_id": "NCT06308822",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    expected = (
+        "Patients must have FGFR Amplification as determined via the MATCH Master "
+        "Protocol."
+    )
+    assert data["answer"] == expected
+
+
+def test_alignment_restores_braf_clause(monkeypatch):
+    sample_chunk = {
+        "nct_id": "NCT06400225",
+        "section": "Eligibility.Inclusion",
+        "text": (
+            "Patients must have met applicable eligibility criteria in the Master MATCH "
+            "Protocol EAY131/ NCI-2015-00054 prior to registration to treatment subprotocol "
+            "Patients must fulfill all eligibility criteria of MATCH Master Protocol at the "
+            "time of registration to treatment step (Step 1, 3, 5, 7) Patients must have a "
+            "BRAF non-V600 mutation or BRAF fusion, or another BRAF aberration, as determined "
+            "via the MATCH Master Protocol Patients with BRAF V600E/K/R/D mutations are "
+            "excluded"
+        ),
+    }
+
+    def _fake_retrieve_chunks(query, nct_id):
+        return [sample_chunk]
+
+    def _fake_call_llm(query, chunks):
+        return (
+            "Patients must have a BRAF non-V600 mutation or BRAF fusion.",
+            [sample_chunk],
+        )
+
+    monkeypatch.setattr(qa, "retrieve_chunks", _fake_retrieve_chunks)
+    monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
+
+    response = client.post(
+        "/ask/",
+        json={
+            "query": "Which BRAF alterations qualify participants?",
+            "nct_id": "NCT06400225",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    expected = (
+        "Patients must have a BRAF non-V600 mutation or BRAF fusion, or another BRAF "
+        "aberration, as determined via the MATCH Master Protocol"
+    )
+    assert data["answer"] == expected
+
+
+def test_alignment_restores_mgmt_testing_clause(monkeypatch):
+    sample_chunk = {
+        "nct_id": "NCT04765514",
+        "section": "Eligibility.Inclusion",
+        "text": (
+            "1. Newly-diagnosed, histologically proven, intracranial glioblastoma with"
+            " maximal safe resection. Biopsy alone is expected if resection is not"
+            " possible. MGMT promoter methylation status must be tested for all patients."
+        ),
+    }
+
+    def _fake_retrieve_chunks(query, nct_id):
+        return [sample_chunk]
+
+    def _fake_call_llm(query, chunks):
+        return "MGMT promoter methylation status.", [sample_chunk]
+
+    monkeypatch.setattr(qa, "retrieve_chunks", _fake_retrieve_chunks)
+    monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
+
+    response = client.post(
+        "/ask/",
+        json={
+            "query": "Which biomarker testing is required before randomization?",
+            "nct_id": "NCT04765514",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    expected = "MGMT promoter methylation status must be tested for all patients."
+    assert data["answer"] == expected
+
+
+def test_alignment_prefers_caregiver_clause(monkeypatch):
+    sample_chunk = {
+        "nct_id": "NCT06989086",
+        "section": "Eligibility.Inclusion",
+        "text": (
+            "Patients: Self-report a diagnosis of a primary malignant brain tumor "
+            "(grade II-IV) >2 weeks post-cranial resection or biopsy Elevated Fear of "
+            "Recurrence Distress Rating Primarily English speaking >= 18 years of age "
+            "at the time of enrollment Caregivers: nonprofessional caregiver to a "
+            "patient with a primary malignant brain tumor (grade II-IV) Elevated Fear "
+            "of Recurrence Distress Rating Primarily English speaking >= 18 years of "
+            "age at the time of enrollment"
+        ),
+    }
+
+    def _fake_retrieve_chunks(query, nct_id):
+        return [sample_chunk]
+
+    def _fake_call_llm(query, chunks):
+        answer = (
+            "Caregivers can enroll if they are a nonprofessional caregiver to a patient "
+            "with a primary malignant brain tumor (grade II-IV), have an Elevated Fear "
+            "of Recurrence Distress Rating, are primarily English speaking, and are 18 "
+            "years of age at the time of enrollment."
+        )
+        return answer, [sample_chunk]
+
+    monkeypatch.setattr(qa, "retrieve_chunks", _fake_retrieve_chunks)
+    monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
+
+    response = client.post(
+        "/ask/",
+        json={
+            "query": "In trial NCT06989086, who can enroll as caregivers?",
+            "nct_id": "NCT06989086",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    expected = (
+        "Caregivers: nonprofessional caregiver to a patient with a primary malignant "
+        "brain tumor (grade II-IV)"
+    )
+    assert data["answer"] == expected
+
+
+def test_alignment_recovers_hypoxia_mapping_from_fallback(monkeypatch):
+    sample_chunk = {
+        "nct_id": "NCT06041555",
+        "section": "Outcomes",
+        "text": (
+            "{'measure': 'Hypoxia mapping', 'time_frame': 'At the end of the sequence of "
+            "treatment of each patient, that is 13 weeks after the beginning of the "
+            "treatment'}"
+        ),
+    }
+
+    def _fake_retrieve_chunks(query, nct_id):
+        return [sample_chunk]
+
+    def _fake_call_llm(query, chunks):
+        return "I don't know.", [sample_chunk]
+
+    monkeypatch.setattr(qa, "retrieve_chunks", _fake_retrieve_chunks)
+    monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
+
+    response = client.post(
+        "/ask/",
+        json={
+            "query": "What outcome measure tracks the MRI sequence program in NCT06041555?",
+            "nct_id": "NCT06041555",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["answer"] == "Hypoxia mapping"
+
+
+def test_alignment_expands_ecog_status_clause(monkeypatch):
+    sample_chunk = {
+        "nct_id": "NCTECG0001",
+        "section": "Eligibility.Inclusion",
+        "text": (
+            "Must have ECOG 0-1. " "Patients must provide signed informed consent."
+        ),
+    }
+
+    def _fake_retrieve_chunks(query, nct_id):
+        return [sample_chunk]
+
+    def _fake_call_llm(query, chunks):
+        return "ECOG 0-1.", [sample_chunk]
+
+    monkeypatch.setattr(qa, "retrieve_chunks", _fake_retrieve_chunks)
+    monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
+
+    response = client.post(
+        "/ask/",
+        json={
+            "query": "What ECOG performance status is required?",
+            "nct_id": "NCTECG0001",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    expected = "Must have ECOG 0-1."
+    assert data["answer"] == expected
+
+
+def test_alignment_retains_measurable_disease_window(monkeypatch):
+    sample_chunk = {
+        "nct_id": "NCTMEAS0002",
+        "section": "Eligibility.Inclusion",
+        "text": (
+            "Men and women \u226518 years of age Histologically confirmed GBM at first or second"
+            " recurrence after concurrent or adjuvant chemotherapy or radiotherapy (must have"
+            " received temozolomide). Radiographic demonstration of disease progression by MRI"
+            " following prior therapy. Measurable disease (bidimensional) as defined by the RANO"
+            " criteria, with a minimum measurement of 1 cm in longest diameter on MRI performed"
+            " within 21 days of first dose of acalabrutinib; MRI must have been obtained \u22654"
+            " weeks after any salvage surgery after first or second relapse. Stable or decreasing"
+            " dose of corticosteroids \u22655 days before baseline MRI (at study entry)."
+        ),
+    }
+
+    def _fake_retrieve_chunks(query, nct_id):
+        return [sample_chunk]
+
+    def _fake_call_llm(query, chunks):
+        return "Measurable disease as defined by the RANO criteria.", [sample_chunk]
+
+    monkeypatch.setattr(qa, "retrieve_chunks", _fake_retrieve_chunks)
+    monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
+
+    response = client.post(
+        "/ask/",
+        json={
+            "query": "What measurable disease requirement applies?",
+            "nct_id": "NCTMEAS0002",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    expected = (
+        "Measurable disease (bidimensional) as defined by the RANO criteria, with a minimum"
+        " measurement of 1 cm in longest diameter on MRI performed within 21 days of first"
+        " dose of acalabrutinib; MRI must have been obtained \u22654 weeks after any salvage"
+        " surgery after first or second relapse."
+    )
+    assert data["answer"] == expected
+
+
+def test_alignment_restores_who_meningioma_clause(monkeypatch):
+    sample_chunk = {
+        "nct_id": "NCTMEN0003",
+        "section": "Eligibility.Inclusion",
+        "text": (
+            "Be histologically confirmed WHO grade II-III meningioma as determined via central pathology review."
+        ),
+    }
+
+    def _fake_retrieve_chunks(query, nct_id):
+        return [sample_chunk]
+
+    def _fake_call_llm(query, chunks):
+        return "WHO grade II-III meningioma.", [sample_chunk]
+
+    monkeypatch.setattr(qa, "retrieve_chunks", _fake_retrieve_chunks)
+    monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
+
+    response = client.post(
+        "/ask/",
+        json={
+            "query": "Which WHO meningioma grades are required?",
+            "nct_id": "NCTMEN0003",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    expected = "Be histologically confirmed WHO grade II-III meningioma as determined via central pathology review."
+    assert data["answer"] == expected
+
+
+def test_alignment_prefers_radiation_label_with_shared_tokens(monkeypatch):
+    sample_chunk = {
+        "nct_id": "NCTRAD0004",
+        "section": "Interventions",
+        "text": (
+            "RADIATION: Proton beam radiotherapy RADIATION: Intensity-modulated radiotherapy"
+        ),
+    }
+
+    def _fake_retrieve_chunks(query, nct_id):
+        return [sample_chunk]
+
+    def _fake_call_llm(query, chunks):
+        return "Proton beam radiotherapy.", [sample_chunk]
+
+    monkeypatch.setattr(qa, "retrieve_chunks", _fake_retrieve_chunks)
+    monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
+
+    response = client.post(
+        "/ask/",
+        json={
+            "query": "Which proton radiation technique is studied?",
+            "nct_id": "NCTRAD0004",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    expected = "RADIATION: Proton beam radiotherapy"
+    assert data["answer"] == expected
+
+
+def test_alignment_prioritizes_colon_label_over_title(monkeypatch):
+    title_chunk = {
+        "nct_id": "NCT03251027",
+        "section": "Title",
+        "text": (
+            "Intensity-Modulated Stereotactic Radiotherapy as an Upfront Scalp-Sparing "
+            "Intervention for the Treatment of Newly Diagnosed Grade II-IV Gliomas"
+        ),
+    }
+    label_chunk = {
+        "nct_id": "NCT03251027",
+        "section": "Interventions",
+        "text": "RADIATION: Intensity-Modulated Radiation Therapy",
+    }
+
+    def _fake_retrieve_chunks(query, nct_id):
+        return [title_chunk, label_chunk]
+
+    def _fake_call_llm(query, chunks):
+        return "Intensity-Modulated Radiation Therapy", [title_chunk, label_chunk]
+
+    monkeypatch.setattr(qa, "retrieve_chunks", _fake_retrieve_chunks)
+    monkeypatch.setattr(qa, "call_llm_with_citations", _fake_call_llm)
+
+    response = client.post(
+        "/ask/",
+        json={
+            "query": "Which radiation technique is delivered upfront in NCT03251027?",
+            "nct_id": "NCT03251027",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    expected = "RADIATION: Intensity-Modulated Radiation Therapy"
+    assert data["answer"] == expected
+
+
+def test_citation_selector_covers_late_sections():
+    context_chunks = [
+        {
+            "nct_id": "NCT00000001",
+            "section": "Overview",
+            "text": "This phase 2 study evaluates response rates.",
+        },
+        {
+            "nct_id": "NCT00000001",
+            "section": "Background",
+            "text": "Patients have relapsed disease.",
+        },
+        {
+            "nct_id": "NCT00000001",
+            "section": "Sponsor",
+            "text": "Sponsored by Example Oncology Group.",
+        },
+        {
+            "nct_id": "NCT00000001",
+            "section": "Eligibility.Inclusion",
+            "text": "Adults aged 18 years or older with ECOG performance status 0-1 are eligible.",
+        },
+        {
+            "nct_id": "NCT00000001",
+            "section": "Eligibility.Exclusion",
+            "text": "Patients with prior systemic therapy are excluded from enrollment.",
+        },
+        {
+            "nct_id": "NCT00000001",
+            "section": "Outcome Measures.Primary",
+            "text": "Primary outcome measure is progression-free survival at 12 months.",
+        },
+        {
+            "nct_id": "NCT00000001",
+            "section": "Arms",
+            "text": "Participants receive ibrutinib monotherapy throughout the study.",
+        },
+    ]
+
+    answer = (
+        "Adults aged 18 years or older with ECOG 0-1 may enroll, patients with prior "
+        "systemic therapy are excluded, the primary outcome measures progression-free "
+        "survival, and participants receive ibrutinib monotherapy."
+    )
+
+    citations = tools._select_citations(answer, context_chunks)
+    sections = [citation["section"] for citation in citations]
+    expected_sections = [
+        "Eligibility.Inclusion",
+        "Eligibility.Exclusion",
+        "Outcome Measures.Primary",
+        "Arms",
+    ]
+
+    assert citations_match(citations, expected_sections, "NCT00000001")
+    assert any(
+        section not in {c["section"] for c in context_chunks[:3]}
+        for section in sections
+    )
+    assert len(citations) >= len(expected_sections)
+
+
+def test_select_chunks_context_includes_all_lines():
+    chunks = [
+        {
+            "nct_id": "NCT12345678",
+            "section": "Overview",
+            "text": "First chunk of context.",
+            "score": 0.9,
+        },
+        {
+            "nct_id": "NCT12345678",
+            "section": "Eligibility",
+            "text": "Second chunk of context.",
+            "score": 0.8,
+        },
+        {
+            "nct_id": "NCT12345678",
+            "section": "Arms",
+            "text": "Third chunk of context.",
+            "score": 0.7,
+        },
+    ]
+
+    selected, context_text = tools._select_chunks_for_context(chunks, max_chars=1000)
+
+    assert len(selected) == len(chunks)
+
+    expected_lines = [
+        tools._format_chunk_line(chunk, idx)
+        for idx, chunk in enumerate(selected, start=1)
+    ]
+
+    assert context_text.splitlines() == expected_lines
+    assert tools._format_context(selected).splitlines() == expected_lines
