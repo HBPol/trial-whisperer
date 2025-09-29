@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Any
 
 import tomli
 from qdrant_client import QdrantClient
@@ -15,18 +16,30 @@ from pipeline.index_qdrant import index_chunks
 def main() -> None:
     """Load configuration and index trial chunks."""
     config_path = Path("config/appsettings.toml")
-    if not config_path.exists():
-        msg = f"Missing configuration file: {config_path}"
-        raise FileNotFoundError(msg)
+    config: dict[str, Any] = {}
+    if config_path.exists():
+        config = tomli.loads(config_path.read_text())
 
-    config = tomli.loads(config_path.read_text())
-    proc_dir = config.get("data", {}).get("proc_dir", ".data/processed")
-    data_file = Path(proc_dir) / "trials.jsonl"
+    data_cfg = config.get("data", {})
+    if not isinstance(data_cfg, dict):
+        data_cfg = {}
+
+    proc_dir = data_cfg.get("proc_dir")
+    data_env = os.getenv("TRIALS_DATA_PATH")
+    if proc_dir:
+        data_file = Path(proc_dir) / "trials.jsonl"
+    elif data_env:
+        data_file = Path(data_env)
+    else:
+        data_file = Path(".data/processed") / "trials.jsonl"
 
     client: QdrantClient | None = None
     retrieval = config.get("retrieval", {})
-    url = os.getenv("QDRANT_URL") or retrieval.get("qdrant_url")
-    api_key = os.getenv("QDRANT_API_KEY") or retrieval.get("qdrant_api_key")
+    if not isinstance(retrieval, dict):
+        retrieval = {}
+
+    url = retrieval.get("qdrant_url") or os.getenv("QDRANT_URL")
+    api_key = retrieval.get("qdrant_api_key") or os.getenv("QDRANT_API_KEY")
     if url or api_key:
         client = QdrantClient(url=url, api_key=api_key)
 

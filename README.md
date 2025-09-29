@@ -29,11 +29,18 @@ Clinical Trial Protocol Chatbot (MVP): query trial eligibility criteria, outcome
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
+cp config/.env.example config/.env
+# Edit config/.env with provider keys / endpoints
 cp config/appsettings.example.toml config/appsettings.toml
-# Edit config/appsettings.toml with your keys / endpoints
+# Optional: adjust config/appsettings.toml for non-secret defaults
 make seed # downloads trials from ClinicalTrials.gov and indexes them
 make run
 ```
+
+TrialWhisperer loads environment variables from `config/.env` (or a `.env` file
+in the repository root). Secrets such as LLM and Qdrant credentials should live
+there. `config/appsettings.toml` is optional and supplies non-secret fallback
+defaults when an environment variable is unset.
 
 The seeding step requires an accessible Qdrant instance. If `QDRANT_URL` and
 `QDRANT_API_KEY` are not set, the script will attempt to start a local Qdrant
@@ -117,6 +124,13 @@ by the indexing step:
    `.data/processed/trials.jsonl`) with the real NCT IDs from the feed.
 3. `python -m scripts.index` embeds the chunks and upserts them into Qdrant so
    the application can serve queries immediately after seeding.
+
+   The indexing script treats `config/appsettings.toml` as optional—when the
+   file is absent it falls back to environment variables. Export
+   `TRIALS_DATA_PATH` to point at the processed trials JSONL and optionally set
+   `QDRANT_URL`/`QDRANT_API_KEY` to target a hosted Qdrant instance. When the
+   TOML file is present its `[data.proc_dir]` and `[retrieval]` sections provide
+   the defaults; the environment variables supply them when the file is absent.
 
 #### Changing the ingestion defaults
 
@@ -229,26 +243,27 @@ vector index reflects the freshly downloaded trials.
 
 ```bash
 docker build -t trial-whisperer .
-# assumes config/appsettings.toml exists locally
+# ensure config/.env exists locally
 docker run --rm -p 8000:8000 \
-  -v $(pwd)/config/appsettings.toml:/app/config/appsettings.toml:ro \
+  --env-file config/.env \
   trial-whisperer
 ```
 
-This mounts your local `config/appsettings.toml` into the container, making it
-the single source of configuration. Alternatively, copy the file into the
-image at build time if you prefer.
+Mount or bake in `config/appsettings.toml` only when you need additional
+non-secret defaults inside the container. The environment variables in
+`config/.env` remain the primary configuration surface.
 
 The container exposes the FastAPI app on port 8000 by default.
 
 ### Environment variables
 
-Environment variables are optional and override values in
-`config/appsettings.toml`. For example:
+Environment variables drive most configuration, whether exported directly or
+loaded from `config/.env`. Override values in the env file at run time if
+needed:
 
 ```bash
 docker run --rm -p 8000:8000 \
-  -v $(pwd)/config/appsettings.toml:/app/config/appsettings.toml:ro \
+  --env-file config/.env \
   -e LLM_API_KEY="override" \
   trial-whisperer
 ```
@@ -256,6 +271,7 @@ docker run --rm -p 8000:8000 \
 - `LLM_API_KEY` – API key for your LLM provider.
 - `QDRANT_URL` – Qdrant cloud endpoint (including port number e.g. `https://YOUR.QDRANT.URL:6333`).
 - `QDRANT_API_KEY` – Qdrant authentication token.
+- `QDRANT_COLLECTION` – Vector collection name for seeded trials.
 - `TRIALS_DATA_PATH` – Location of the processed trials JSONL file. Override to
   switch between seeded data and ad-hoc datasets (defaults to
   `.data/processed/trials.jsonl`).

@@ -93,6 +93,7 @@ def test_index_chunks_reads_jsonl_and_invokes_dependencies(tmp_path, monkeypatch
 
 
 def test_index_script_uses_qdrant_config(tmp_path, monkeypatch):
+    monkeypatch.delenv("TRIALS_DATA_PATH", raising=False)
     config_dir = tmp_path / "config"
     config_dir.mkdir()
     (config_dir / "appsettings.toml").write_text(
@@ -121,6 +122,34 @@ proc_dir = "."
     index_script.main()
 
     mock_client_cls.assert_called_once_with(url="https://example", api_key="secret")
+    mock_index_chunks.assert_called_once()
+    kwargs = mock_index_chunks.call_args.kwargs
+    assert kwargs["client"] is mock_client
+    assert Path(kwargs["data_path"]).resolve() == data_file
+
+
+def test_index_script_uses_env_without_config(tmp_path, monkeypatch):
+    monkeypatch.delenv("TRIALS_DATA_PATH", raising=False)
+    data_file = tmp_path / "custom.jsonl"
+    data_file.write_text("{}\n")
+
+    monkeypatch.setenv("TRIALS_DATA_PATH", str(data_file))
+    monkeypatch.setenv("QDRANT_URL", "https://env-url")
+    monkeypatch.setenv("QDRANT_API_KEY", "env-key")
+
+    from scripts import index as index_script
+
+    mock_client_cls = MagicMock()
+    mock_client = MagicMock()
+    mock_client_cls.return_value = mock_client
+    monkeypatch.setattr(index_script, "QdrantClient", mock_client_cls)
+    mock_index_chunks = MagicMock()
+    monkeypatch.setattr(index_script, "index_chunks", mock_index_chunks)
+
+    monkeypatch.chdir(tmp_path)
+    index_script.main()
+
+    mock_client_cls.assert_called_once_with(url="https://env-url", api_key="env-key")
     mock_index_chunks.assert_called_once()
     kwargs = mock_index_chunks.call_args.kwargs
     assert kwargs["client"] is mock_client
