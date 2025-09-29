@@ -125,6 +125,13 @@ by the indexing step:
 3. `python -m scripts.index` embeds the chunks and upserts them into Qdrant so
    the application can serve queries immediately after seeding.
 
+   The indexing script treats `config/appsettings.toml` as optional—when the
+   file is absent it falls back to environment variables. Export
+   `TRIALS_DATA_PATH` to point at the processed trials JSONL and optionally set
+   `QDRANT_URL`/`QDRANT_API_KEY` to target a hosted Qdrant instance. When the
+   TOML file is present its `[data.proc_dir]` and `[retrieval]` sections provide
+   the defaults; the environment variables supply them when the file is absent.
+
 #### Changing the ingestion defaults
 
 The ingestion script reads its defaults from `config/appsettings.toml`. Update
