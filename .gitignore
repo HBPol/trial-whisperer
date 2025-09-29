@@ -1,5 +1,6 @@
 # Local environment & variables
 .env
+!config/.env
 .venv/
 
 # JetBrains IDE folder
